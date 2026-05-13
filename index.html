@@ -6,8 +6,11 @@
   <title>Garden Defense</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* Infinite rightward-scrolling background that fills the viewport */
     body {
-      background: #1a1a2e;
+      position: relative;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -15,6 +18,29 @@
       min-height: 100vh;
       font-family: 'Segoe UI', sans-serif;
       color: #eee;
+      background: #0a0a14;   /* fallback while image loads */
+    }
+
+    /* Two side-by-side copies of the image; animating leftward by 50%
+       creates a seamless infinite scroll toward the right from the viewer's perspective */
+    #bg-scroll {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 200%;         /* two copies wide */
+      height: 100%;
+      background-image: url('assets/background.jpg');
+      background-repeat: repeat-x;
+      background-size: 50% 100%;   /* each copy = full viewport width */
+      background-position: 0 0;
+      animation: bgScroll 30s linear infinite;
+      z-index: 0;
+      opacity: 0.6;
+    }
+
+    @keyframes bgScroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
     }
     h1 {
       margin-bottom: 12px;
@@ -65,9 +91,18 @@
       text-align: center;
       max-width: 860px;
     }
+
+    /* Lift all page content above the scrolling bg layer */
+    h1, #game-container, #start-btn, #instructions {
+      position: relative;
+      z-index: 1;
+    }
   </style>
 </head>
 <body>
+  <!-- Infinite scrolling background div (CSS-animated) -->
+  <div id="bg-scroll"></div>
+
   <h1>🌿 Garden Defense</h1>
   <div id="game-container">
     <canvas id="gameCanvas"></canvas>
