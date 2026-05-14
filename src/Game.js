@@ -32,7 +32,9 @@ export class Game {
     this.state    = 'idle';
     this.lastTime = 0;
     this._sprites = {};
-    this._bgImage = null;
+    this._bgImage     = null;
+    this._stoneFloor  = null;
+    this._treeMain    = null;
 
     this._overlay = document.getElementById('overlay');
 
@@ -50,12 +52,19 @@ export class Game {
   async preload() {
     const unitSrcs  = Object.values(UNIT_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
     const enemySrcs = Object.values(ENEMY_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
+    const mapSrcs   = ['assets/map/Stone_floor.jpg', 'assets/map/Tree_main.png'];
     const bgSrc     = 'assets/background.jpg';
 
-    this._sprites = await this._loader.loadAll([...unitSrcs, ...enemySrcs, bgSrc])
+    this._sprites = await this._loader.loadAll([...unitSrcs, ...enemySrcs, ...mapSrcs, bgSrc])
       .catch(() => this._loader.loadAll([...unitSrcs, ...enemySrcs]));
 
-    this._bgImage = this._sprites['assets/background.jpg'] ?? null;
+    this._bgImage    = this._sprites['assets/background.jpg']      ?? null;
+    this._stoneFloor = this._sprites['assets/map/Stone_floor.jpg'] ?? null;
+    this._treeMain   = this._sprites['assets/map/Tree_main.png']   ?? null;
+
+    // Pass stone floor to grid so it can tile it
+    this.grid.stoneFloorImg = this._stoneFloor;
+
     this.waveManager.setSprites(this._sprites);
   }
 
@@ -165,27 +174,71 @@ export class Game {
     ctx.fillStyle = '#1a2a1a';
     ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.GAME_AREA_HEIGHT);
 
-    // 2. Background image rendered as semi-transparent atmospheric overlay
-    //    on top of the ground colour but BEHIND all game objects.
+    // 2. Background image — subtle atmospheric overlay behind all game objects
     if (this._bgImage) {
       ctx.save();
-      ctx.globalAlpha = 0.35;   // subtle — doesn't obscure sprites
+      ctx.globalAlpha = 0.22;
       ctx.drawImage(this._bgImage, 0, 0, CONFIG.CANVAS_WIDTH, CONFIG.GAME_AREA_HEIGHT);
       ctx.restore();
     }
 
-    // 3. Grid lines
+    // 3. 3D-style tiled floor (stone + danger zone overlay) via Grid
     this.grid.draw(ctx);
 
-    // 4. Game objects
+    // 4. Big Tree at danger zone (col 0) — the object to defend
+    this._drawDefenseTree(ctx);
+
+    // 5. Game objects
     for (const unit  of this.units)       unit.draw(ctx);
     for (const enemy of this.enemies)     enemy.draw(ctx);
     for (const proj  of this.projectiles) proj.draw(ctx);
 
-    // 5. HUD
+    // 6. HUD
     this.ui.draw(ctx, this.player, this.waveManager);
 
     if (this.state === 'paused') this._drawPauseOverlay(ctx);
+  }
+
+  /**
+   * Draw the big Tree_main sprite centred in the danger column (col 0).
+   * The tree is larger than one cell — it spans the full game-area height
+   * and is anchored to the bottom of the game area so it looks "planted".
+   */
+  _drawDefenseTree(ctx) {
+    const cs = CONFIG.CELL_SIZE;
+
+    // Tree occupies col 0 horizontally; vertically fills the game area
+    const treeW = cs * 1.6;
+    const treeH = CONFIG.GAME_AREA_HEIGHT * 0.92;
+    const tx    = cs * 0.5 - treeW / 2;           // centred in col 0
+    const ty    = CONFIG.GAME_AREA_HEIGHT - treeH; // planted at bottom
+
+    ctx.save();
+
+    if (this._treeMain) {
+      ctx.drawImage(this._treeMain, tx, ty, treeW, treeH);
+    } else {
+      // Fallback: draw a stylised tree shape
+      ctx.fillStyle = '#5d4037';
+      ctx.fillRect(tx + treeW * 0.38, ty + treeH * 0.55, treeW * 0.24, treeH * 0.45);
+      ctx.fillStyle = '#2e7d32';
+      ctx.beginPath();
+      ctx.arc(tx + treeW / 2, ty + treeH * 0.38, treeW * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#388e3c';
+      ctx.beginPath();
+      ctx.arc(tx + treeW / 2, ty + treeH * 0.22, treeW * 0.36, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Label so it's always clear what is being defended
+    ctx.font      = 'bold 9px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur  = 3;
+    ctx.fillText('DEFEND', cs * 0.5, CONFIG.GAME_AREA_HEIGHT - 4);
+    ctx.restore();
   }
 
   _drawPauseOverlay(ctx) {
@@ -237,7 +290,7 @@ export class Game {
     const unit = new Unit({
       config, x: worldX, y: worldY, col, row,
       laneIndex: row, sprites,
-      game: this,   // pass game so Unit can fire projectiles
+      game: this,
     });
 
     this.grid.place(col, row, unit);

@@ -7,7 +7,6 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    /* Infinite rightward-scrolling background that fills the viewport */
     body {
       position: relative;
       overflow: hidden;
@@ -18,45 +17,169 @@
       min-height: 100vh;
       font-family: 'Segoe UI', sans-serif;
       color: #eee;
-      background: #0a0a14;   /* fallback while image loads */
+      background: #0a0a14;
     }
 
-    /* Two side-by-side copies of the image; animating leftward by 50%
-       creates a seamless infinite scroll toward the right from the viewer's perspective */
     #bg-scroll {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 200%;         /* two copies wide */
-      height: 100%;
+      top: 0; left: 0;
+      width: 200%; height: 100%;
       background-image: url('assets/background.jpg');
       background-repeat: repeat-x;
-      background-size: 50% 100%;   /* each copy = full viewport width */
+      background-size: 50% 100%;
       background-position: 0 0;
       animation: bgScroll 30s linear infinite;
       z-index: 0;
       opacity: 0.6;
     }
-
     @keyframes bgScroll {
       from { transform: translateX(0); }
       to   { transform: translateX(-50%); }
     }
-    h1 {
-      margin-bottom: 12px;
-      font-size: 2rem;
+
+    /* ── Shared z-index layer ── */
+    #game-wrapper, #main-menu, #settings-screen, #credits-screen {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ══════════════════════════════════
+       MAIN MENU
+    ══════════════════════════════════ */
+    #main-menu {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      animation: fadeIn 0.6s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:none; } }
+
+    .menu-title {
+      font-size: 3.2rem;
+      font-weight: 900;
+      color: #a8ff78;
+      text-shadow: 0 0 18px #4caf50, 0 2px 4px #000;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .menu-subtitle {
+      font-size: 1rem;
+      color: #88cc88;
+      margin-top: -14px;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+    }
+
+    .menu-btn {
+      width: 240px;
+      padding: 14px 0;
+      font-size: 1.15rem;
+      font-weight: 700;
+      border: 2px solid #4caf50;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+      letter-spacing: 1px;
+    }
+    .menu-btn-primary {
+      background: #4caf50;
+      color: #fff;
+      box-shadow: 0 0 14px #4caf5066;
+    }
+    .menu-btn-primary:hover {
+      background: #66bb6a;
+      transform: scale(1.04);
+      box-shadow: 0 0 22px #4caf5099;
+    }
+    .menu-btn-secondary {
+      background: rgba(0,0,0,0.45);
+      color: #a8ff78;
+    }
+    .menu-btn-secondary:hover {
+      background: rgba(76,175,80,0.18);
+      transform: scale(1.03);
+    }
+
+    /* ══════════════════════════════════
+       SECONDARY SCREENS (Settings / Credits)
+    ══════════════════════════════════ */
+    .sub-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      background: rgba(10,15,10,0.88);
+      border: 2px solid #4caf50;
+      border-radius: 12px;
+      padding: 36px 48px;
+      min-width: 340px;
+      animation: fadeIn 0.35s ease;
+      box-shadow: 0 0 40px #4caf5033;
+    }
+    .sub-screen.visible { display: flex; }
+
+    .sub-screen h2 {
+      font-size: 1.8rem;
       color: #a8ff78;
       text-shadow: 0 0 10px #4caf50;
     }
+    .sub-screen p, .sub-screen label {
+      color: #ccc;
+      font-size: 0.95rem;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* Settings rows */
+    .setting-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 100%;
+      justify-content: space-between;
+    }
+    .setting-row label { color: #aee; font-size: 1rem; }
+    .setting-row input[type=range] { width: 140px; accent-color: #4caf50; }
+    .setting-row .val-display { color: #a8ff78; min-width: 36px; text-align: right; }
+
+    .back-btn {
+      margin-top: 6px;
+      padding: 9px 34px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      background: transparent;
+      color: #a8ff78;
+      border: 1.5px solid #4caf50;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .back-btn:hover { background: rgba(76,175,80,0.18); }
+
+    /* Credits */
+    .credit-block { color: #bbb; font-size: 0.9rem; text-align: center; line-height: 1.8; }
+    .credit-block strong { color: #a8ff78; }
+
+    /* ══════════════════════════════════
+       GAME WRAPPER
+    ══════════════════════════════════ */
+    #game-wrapper {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+    #game-wrapper.visible { display: flex; }
+
     #game-container {
       position: relative;
       border: 3px solid #4caf50;
       border-radius: 6px;
       box-shadow: 0 0 30px #4caf5066;
     }
-    canvas {
-      display: block;
-    }
+    canvas { display: block; }
+
     #overlay {
       position: absolute;
       inset: 0;
@@ -72,47 +195,112 @@
     #overlay.visible { display: flex; }
     #overlay.win  { color: #a8ff78; }
     #overlay.lose { color: #ff6b6b; }
-    #start-btn {
-      margin-top: 14px;
-      padding: 10px 36px;
-      font-size: 1.1rem;
-      background: #4caf50;
-      color: #fff;
-      border: none;
+
+    #game-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .ctrl-btn {
+      padding: 9px 28px;
+      font-size: 1rem;
+      font-weight: 700;
       border-radius: 6px;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.18s;
     }
-    #start-btn:hover { background: #66bb6a; }
+    #pause-btn {
+      background: #4caf50; color: #fff; border: none;
+    }
+    #pause-btn:hover { background: #66bb6a; }
+    #menu-btn-ingame {
+      background: transparent; color: #a8ff78;
+      border: 1.5px solid #4caf50;
+    }
+    #menu-btn-ingame:hover { background: rgba(76,175,80,0.18); }
+
     #instructions {
-      margin-top: 10px;
-      font-size: 0.85rem;
+      margin-top: 8px;
+      font-size: 0.82rem;
       color: #aaa;
       text-align: center;
       max-width: 860px;
-    }
-
-    /* Lift all page content above the scrolling bg layer */
-    h1, #game-container, #start-btn, #instructions {
-      position: relative;
-      z-index: 1;
+      position: relative; z-index: 1;
     }
   </style>
 </head>
 <body>
-  <!-- Infinite scrolling background div (CSS-animated) -->
   <div id="bg-scroll"></div>
 
-  <h1>🌿 Garden Defense</h1>
-  <div id="game-container">
-    <canvas id="gameCanvas"></canvas>
-    <div id="overlay"></div>
+  <!-- ══ MAIN MENU ══ -->
+  <div id="main-menu">
+    <div class="menu-title">🌿 Garden Defense</div>
+    <div class="menu-subtitle">Defend the Ancient Tree!</div>
+    <button class="menu-btn menu-btn-primary"  id="btn-start">▶ Start Game</button>
+    <button class="menu-btn menu-btn-secondary" id="btn-settings">⚙ Settings</button>
+    <button class="menu-btn menu-btn-secondary" id="btn-credits">🏅 Credits</button>
   </div>
-  <button id="start-btn">▶ Start Game</button>
-  <p id="instructions">
-    Click a slot (bottom bar) to select a unit → Click the grid to place it.<br>
-    Press <kbd>P</kbd> to pause. Defend the base — don't let enemies through!
-  </p>
+
+  <!-- ══ SETTINGS SCREEN ══ -->
+  <div id="settings-screen" class="sub-screen">
+    <h2>⚙ Settings</h2>
+    <div class="setting-row">
+      <label>Music Volume</label>
+      <input type="range" id="vol-music" min="0" max="100" value="60" />
+      <span class="val-display" id="vol-music-val">60</span>
+    </div>
+    <div class="setting-row">
+      <label>SFX Volume</label>
+      <input type="range" id="vol-sfx" min="0" max="100" value="80" />
+      <span class="val-display" id="vol-sfx-val">80</span>
+    </div>
+    <div class="setting-row">
+      <label>Game Speed</label>
+      <input type="range" id="game-speed" min="50" max="200" value="100" step="25" />
+      <span class="val-display" id="game-speed-val">1×</span>
+    </div>
+    <p style="font-size:0.78rem;color:#666;">(Audio not yet implemented — placeholders)</p>
+    <button class="back-btn" id="settings-back">← Back</button>
+  </div>
+
+  <!-- ══ CREDITS SCREEN ══ -->
+  <div id="credits-screen" class="sub-screen">
+    <h2>🏅 Credits</h2>
+    <div class="credit-block">
+      <strong>Game Design & Programming</strong><br>
+      The Garden Defense Team
+    </div>
+    <div class="credit-block">
+      <strong>Art Assets</strong><br>
+      Custom sprites &amp; tile artwork
+    </div>
+    <div class="credit-block">
+      <strong>Engine</strong><br>
+      Vanilla JS · HTML5 Canvas
+    </div>
+    <div class="credit-block">
+      <strong>Special Thanks</strong><br>
+      Plants vs. Zombies — for the inspiration 🌻
+    </div>
+    <button class="back-btn" id="credits-back">← Back</button>
+  </div>
+
+  <!-- ══ GAME AREA ══ -->
+  <div id="game-wrapper">
+    <div id="game-container">
+      <canvas id="gameCanvas"></canvas>
+      <div id="overlay"></div>
+    </div>
+    <div id="game-controls">
+      <button class="ctrl-btn" id="pause-btn">⏸ Pause</button>
+      <button class="ctrl-btn" id="menu-btn-ingame">🏠 Menu</button>
+    </div>
+    <p id="instructions">
+      Click a slot (bottom bar) to select a unit → Click the grid to place it. &nbsp;|&nbsp;
+      Press <kbd>P</kbd> to pause. &nbsp;|&nbsp; Defend the Ancient Tree!
+    </p>
+  </div>
+
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

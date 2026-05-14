@@ -54,13 +54,30 @@ export class Projectile {
   isDone() { return this._done; }
 
   draw(ctx) {
-    // Green for unit shots, red/orange for enemy shots
+    // ── Ground shadow (small flat ellipse below the projectile) ──
     ctx.save();
-    ctx.fillStyle = this.direction === 1 ? '#a8ff78' : '#ff6b35';
+    ctx.globalAlpha = 0.30;
+    ctx.fillStyle   = '#000';
+    ctx.beginPath();
+    // Shadow is offset downward and squashed
+    ctx.ellipse(this.x, this.y + this.radius * 1.6, this.radius * 1.4, this.radius * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // ── Projectile orb — green for unit shots, red/orange for enemy shots ──
+    ctx.save();
+    ctx.fillStyle   = this.direction === 1 ? '#a8ff78' : '#ff6b35';
     ctx.shadowColor = this.direction === 1 ? '#a8ff78' : '#ff6b35';
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur  = 10;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner bright highlight for depth
+    ctx.fillStyle   = this.direction === 1 ? 'rgba(255,255,255,0.55)' : 'rgba(255,220,120,0.50)';
+    ctx.shadowBlur  = 0;
+    ctx.beginPath();
+    ctx.arc(this.x - this.radius * 0.28, this.y - this.radius * 0.28, this.radius * 0.38, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

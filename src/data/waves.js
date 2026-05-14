@@ -25,5 +25,14 @@ export const WAVES = [
     pool: [
       { defKey: 'slade', weight: 1 },
     ],
+
+  },
+    {
+    wave:          4,
+    totalEnemies:  15,
+    spawnInterval: 2000,
+    pool: [
+      { defKey: 'slade', weight: 1 },
+    ],
   },
 ];

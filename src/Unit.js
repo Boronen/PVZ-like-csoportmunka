@@ -126,6 +126,8 @@ export class Unit {
   draw(ctx) {
     if (this._dead) return;
 
+    this._drawShadow(ctx);
+
     const layout = this._currentLayout();
     const sprite = this._animState === 'attack'
       ? this._sprites.attack
@@ -138,6 +140,21 @@ export class Unit {
     }
 
     this._drawHealthBar(ctx);
+  }
+
+  /** Soft blob shadow on the floor beneath the unit */
+  _drawShadow(ctx) {
+    const shadowY  = this.y + CONFIG.CELL_SIZE * 0.42;   // near bottom of sprite
+    const shadowRX = CONFIG.CELL_SIZE * 0.30;             // horizontal radius
+    const shadowRY = CONFIG.CELL_SIZE * 0.09;             // vertical  radius (flat)
+
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.fillStyle   = '#000';
+    ctx.beginPath();
+    ctx.ellipse(this.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   _drawFrame(ctx, sprite, layout) {
@@ -171,10 +188,14 @@ export class Unit {
     const barW  = 48;
     const barH  = 5;
     const bx    = this.x - barW / 2;
-    const by    = this.y - CONFIG.CELL_SIZE / 2 - 8;
+    // Place the bar a few pixels BELOW the bottom edge of the sprite
+    const by    = this.y + CONFIG.CELL_SIZE / 2 + 3;
     const ratio = this.hp / this.maxHp;
 
     ctx.save();
+    // Dark background track
+    ctx.fillStyle = '#222';
+    ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
     ctx.fillStyle = '#333';
     ctx.fillRect(bx, by, barW, barH);
     ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';

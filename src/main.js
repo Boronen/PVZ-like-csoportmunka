@@ -1,32 +1,101 @@
 import { Game } from './Game.js';
 
-// Entry point — wires the DOM to the Game instance.
-const canvas    = document.getElementById('gameCanvas');
-const startBtn  = document.getElementById('start-btn');
+// ── DOM refs ────────────────────────────────────────────────────────────────
+const mainMenu      = document.getElementById('main-menu');
+const settingsScr   = document.getElementById('settings-screen');
+const creditsScr    = document.getElementById('credits-screen');
+const gameWrapper   = document.getElementById('game-wrapper');
+const canvas        = document.getElementById('gameCanvas');
+const pauseBtn      = document.getElementById('pause-btn');
+const menuBtnIngame = document.getElementById('menu-btn-ingame');
 
-const game = new Game(canvas);
+// ── Settings live-update ─────────────────────────────────────────────────────
+function bindRange(id, displayId, fmt) {
+  const el  = document.getElementById(id);
+  const disp = document.getElementById(displayId);
+  el.addEventListener('input', () => { disp.textContent = fmt(el.value); });
+}
+bindRange('vol-music',   'vol-music-val',   v => v);
+bindRange('vol-sfx',     'vol-sfx-val',     v => v);
+bindRange('game-speed',  'game-speed-val',  v => (v / 100) + '×');
 
-// Preload all sprites, then let the player press Start
-game.preload().then(() => {
-  // Render a static first frame so the canvas isn't blank
+// ── Navigation helpers ───────────────────────────────────────────────────────
+function showOnly(el) {
+  [mainMenu, settingsScr, creditsScr, gameWrapper].forEach(s => {
+    if (s === el) {
+      s.classList.add('visible');
+      s.style.display = '';
+    } else {
+      s.classList.remove('visible');
+      s.style.display = 'none';
+    }
+  });
+}
+
+// Hide everything except main menu on load
+settingsScr.style.display  = 'none';
+creditsScr.style.display   = 'none';
+gameWrapper.style.display  = 'none';
+
+document.getElementById('btn-settings').addEventListener('click', () => showOnly(settingsScr));
+document.getElementById('btn-credits').addEventListener('click',  () => showOnly(creditsScr));
+document.getElementById('settings-back').addEventListener('click', () => showOnly(mainMenu));
+document.getElementById('credits-back').addEventListener('click',  () => showOnly(mainMenu));
+
+// ── Game instance (created once) ─────────────────────────────────────────────
+let game = null;
+
+document.getElementById('btn-start').addEventListener('click', async () => {
+  showOnly(gameWrapper);
+
+  if (!game) {
+    game = new Game(canvas);
+    try      { await game.preload(); }
+    catch(e) { console.warn('Preload warning:', e); }
+  }
+
+  // Reset to fresh state if coming back from a finished game
+  if (game.state === 'win' || game.state === 'lose') {
+    game = new Game(canvas);
+    try { await game.preload(); } catch(e) { /* ok */ }
+  }
+
   game.render();
-}).catch(err => {
-  console.warn('Sprite preload warning (some images may be missing):', err);
-  game.render();
+  pauseBtn.textContent = '⏸ Pause';
+  game.start();
 });
 
-startBtn.addEventListener('click', () => {
-  if (game.state === 'idle') {
-    startBtn.textContent = '⏸ Pause';
-    game.start();
-  } else if (game.state === 'running') {
-    startBtn.textContent = '▶ Resume';
+// ── Pause / Resume ───────────────────────────────────────────────────────────
+pauseBtn.addEventListener('click', () => {
+  if (!game) return;
+  if (game.state === 'running') {
     game.pause();
+    pauseBtn.textContent = '▶ Resume';
   } else if (game.state === 'paused') {
-    startBtn.textContent = '⏸ Pause';
     game.resume();
+    pauseBtn.textContent = '⏸ Pause';
   } else {
-    // win / lose — reload for a new game
-    window.location.reload();
+    // win / lose — restart
+    game = null;
+    document.getElementById('btn-start').click();
+  }
+});
+
+// ── Back to menu ─────────────────────────────────────────────────────────────
+menuBtnIngame.addEventListener('click', () => {
+  if (game) { game.pause(); }
+  showOnly(mainMenu);
+});
+
+// ── Keyboard shortcut P ──────────────────────────────────────────────────────
+window.addEventListener('keydown', e => {
+  if ((e.key === 'p' || e.key === 'P') && game) {
+    if (game.state === 'running') {
+      game.pause();
+      pauseBtn.textContent = '▶ Resume';
+    } else if (game.state === 'paused') {
+      game.resume();
+      pauseBtn.textContent = '⏸ Pause';
+    }
   }
 });
