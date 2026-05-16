@@ -140,11 +140,13 @@ export const ENEMY_DEFS = {
     // 832×64 → 13 col × 1 row → frame 64×64 (perfect square)
     idleSprite:    'assets/skeleton_enemy_moving.png',
     attackSprite:  'assets/skeleton_enemy_attack.png',
-    idleFrames:    { cols: 13, rows: 1, total: 13 },
+    // 12 usable frames (last frame is blank/useless)
+    idleFrames:    { cols: 13, rows: 1, total: 12 },
     attackFrames:  { cols: 13, rows: 1, total: 13 },
     drawSize:      72,
-    // Shift render anchor right so the attack swing doesn't overflow the left edge
     drawOffsetX:   18,
+    // Sprite faces right — flip horizontally so it faces left (enemy direction)
+    flipX:         true,
 
     onAttack:      'melee',
     effectOnHit:   null,

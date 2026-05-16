@@ -207,7 +207,9 @@ export class Unit {
     const barW  = 48;
     const barH  = 5;
     const bx    = this.x - barW / 2;
-    const by    = this.y + CONFIG.CELL_SIZE / 2 + 3;
+    // Use actual drawSize so bar clears the sprite body for large units (Wizard 125px etc.)
+    const half  = (this.config.drawSize ?? CONFIG.CELL_SIZE) / 2;
+    const by    = this.y + half + 3;
     const ratio = this.hp / this.maxHp;
     ctx.save();
     ctx.fillStyle = '#222';

@@ -40,8 +40,9 @@ export class Game {
     this.units       = [];
     this.projectiles = [];
 
-    this.state    = 'idle';
-    this.lastTime = 0;
+    this.state     = 'idle';
+    this.lastTime  = 0;
+    this.timeScale = 1.0;   // multiplied onto deltaTime — set by settings slider
     this._sprites = {};
     this._bgImage     = null;
     this._stoneFloor  = null;
@@ -126,7 +127,8 @@ export class Game {
   gameLoop(timestamp) {
     if (this.state !== 'running') return;
 
-    const deltaTime = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    const rawDelta  = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+    const deltaTime = rawDelta * this.timeScale;
     this.lastTime   = timestamp;
 
     this.update(deltaTime);

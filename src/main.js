@@ -171,15 +171,31 @@ document.getElementById('settings-back')?.addEventListener('click', () => showOn
 document.getElementById('credits-back')?.addEventListener('click',  () => showOnly(mainMenu));
 document.getElementById('faction-back')?.addEventListener('click',  () => showOnly(mainMenu));
 
-// ── Settings sliders ──────────────────────────────────────────────────────────
-function bindRange(id, displayId, fmt) {
+// ── Settings sliders — wired to live audio + game speed ──────────────────────
+function bindRange(id, displayId, fmt, onChange) {
   const el   = document.getElementById(id);
   const disp = document.getElementById(displayId);
-  if (el && disp) el.addEventListener('input', () => { disp.textContent = fmt(el.value); });
+  if (!el) return;
+  if (disp) disp.textContent = fmt(el.value);
+  el.addEventListener('input', () => {
+    if (disp) disp.textContent = fmt(el.value);
+    if (onChange) onChange(Number(el.value));
+  });
 }
-bindRange('vol-music',  'vol-music-val',  v => v);
-bindRange('vol-sfx',    'vol-sfx-val',    v => v);
-bindRange('game-speed', 'game-speed-val', v => (v / 100) + '×');
+
+// Music volume: live-updates whichever track is currently playing
+bindRange('vol-music', 'vol-music-val', v => v, vol => {
+  const normalized = vol / 100;
+  if (menuMusic) menuMusic.volume = normalized;
+  if (gameMusic) gameMusic.volume = normalized;
+});
+
+bindRange('vol-sfx', 'vol-sfx-val', v => v);
+
+// Game speed: feeds into game.timeScale so the loop multiplies deltaTime
+bindRange('game-speed', 'game-speed-val', v => (v / 100) + '×', speed => {
+  if (game) game.timeScale = speed / 100;
+});
 
 // ── Game instance ─────────────────────────────────────────────────────────────
 let game = null;

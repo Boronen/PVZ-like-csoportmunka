@@ -173,12 +173,19 @@ export class Enemy {
       if (mode === 'melee') {
         if (this._target && !this._target.isDead()) {
           this._target.takeDamage(this.config.damage);
-          if (this.config.sounds?.melee) _playSound(this.config.sounds.melee, 0.7);
+          if (this.config.sounds?.melee) {
+            const snd = _playSound(this.config.sounds.melee, 0.7);
+            // Stop after 2 s so it doesn't overlap the next attack cycle
+            if (snd) setTimeout(() => { snd.pause(); snd.currentTime = 0; }, 2000);
+          }
         }
       } else {
         // Ranged — fire raven projectile
         this._fireRavenProjectile();
-        if (this.config.sounds?.ranged) _playSound(this.config.sounds.ranged, 0.6);
+        if (this.config.sounds?.ranged) {
+          const snd = _playSound(this.config.sounds.ranged, 0.6);
+          if (snd) setTimeout(() => { snd.pause(); snd.currentTime = 0; }, 2000);
+        }
       }
     }
   }
@@ -339,18 +346,27 @@ export class Enemy {
       ? layout.rowIndex
       : Math.floor(this._frameIndex / cols);
 
-    const target  = this.config.drawSize  ?? CONFIG.CELL_SIZE;
+    const target  = this.config.drawSize   ?? CONFIG.CELL_SIZE;
     const offsetX = this.config.drawOffsetX ?? 0;
     const offsetY = this.config.drawOffsetY ?? 0;
+    const flipX   = this.config.flipX       ?? false;
     const scale   = Math.min(target / fw, target / fh);
     const drawW   = fw * scale;
     const drawH   = fh * scale;
 
-    ctx.drawImage(
-      sprite,
-      col * fw, row * fh, fw, fh,
-      this.x - drawW / 2 + offsetX, this.y - drawH / 2 + offsetY, drawW, drawH
-    );
+    const dx = this.x - drawW / 2 + offsetX;
+    const dy = this.y - drawH / 2 + offsetY;
+
+    if (flipX) {
+      ctx.save();
+      ctx.translate(this.x + offsetX, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(sprite, col * fw, row * fh, fw, fh,
+        -drawW / 2, dy, drawW, drawH);
+      ctx.restore();
+    } else {
+      ctx.drawImage(sprite, col * fw, row * fh, fw, fh, dx, dy, drawW, drawH);
+    }
   }
 
   /**
@@ -392,7 +408,11 @@ export class Enemy {
     const barW  = 48;
     const barH  = 5;
     const bx    = this.x - barW / 2;
-    const by    = this.y + CONFIG.CELL_SIZE / 2 + 3;
+    // Position bar below the sprite — use actual drawSize, not the fixed CELL_SIZE.
+    // For large sprites (Jozsi drawSize=320) this prevents the bar being hidden
+    // under the sprite body.
+    const half  = (this.config.drawSize ?? CONFIG.CELL_SIZE) / 2;
+    const by    = this.y + half + 3;
     const ratio = this.hp / this.maxHp;
 
     ctx.save();
