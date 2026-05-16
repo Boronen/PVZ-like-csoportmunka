@@ -20,13 +20,13 @@ export const CONFIG = {
   ENEMY_FRAME_H: 96,
 
   // Animation FPS
-  UNIT_ANIM_FPS:  3,
+  UNIT_ANIM_FPS:  10,
   ENEMY_ANIM_FPS: 10,
 
   // Projectile
   PROJECTILE_SPEED: 600,          // px/s
 
   // Starting values
-  STARTING_MONEY: 150,
+  STARTING_MONEY: 150000,
   BASE_HP:        100,
 };

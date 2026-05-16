@@ -5,9 +5,12 @@ import { Projectile } from './Projectile.js';
 export class Unit {
   /**
    * @param {{ config, x, y, col, row, laneIndex,
-   *            sprites: { idle, attack }, game }} opts
+   *            sprites: { idle, attack },
+   *            projectileSprite?: HTMLImageElement,
+   *            game }} opts
    */
-  constructor({ config, x, y, col, row, laneIndex, sprites, game }) {
+  constructor({ config, x, y, col, row, laneIndex, sprites,
+                projectileSprite = null, game }) {
     this.config     = config;
     this.x          = x;
     this.y          = y;
@@ -18,16 +21,15 @@ export class Unit {
     this.hp         = config.hp;
     this.maxHp      = config.hp;
 
-    this._sprites   = sprites;   // { idle, attack }
-    this._game      = game;      // for pushing projectiles
+    this._sprites          = sprites;
+    this._projectileSprite = projectileSprite;
+    this._game             = game;
 
-    // Animation state
     this._animState     = 'idle';
     this._frameIndex    = 0;
     this._frameTimer    = 0;
     this._frameDuration = 1 / CONFIG.UNIT_ANIM_FPS;
 
-    // Attack timing
     this._attackTimer = 0;
     this._dead        = false;
   }
@@ -36,28 +38,23 @@ export class Unit {
     if (this._dead) return;
 
     const target = this._findTarget(enemies);
-
     this._updateAnimState(target !== null);
     this._advanceFrame();
 
     this._attackTimer += deltaTime;
     const attackInterval = 1 / this.config.attackSpeed;
-
     if (target && this._attackTimer >= attackInterval) {
       this._attackTimer = 0;
       this.attack(target, game);
     }
   }
 
-  // Find the nearest enemy in the same lane within range (enemy is to the right)
   _findTarget(enemies) {
     let closest     = null;
     let closestDist = Infinity;
-
     for (const enemy of enemies) {
       if (enemy.isDead()) continue;
       if (enemy.laneIndex !== this.laneIndex) continue;
-      // dx > 0: enemy is to the right — approaching from the right
       const dx   = enemy.x - this.x;
       const dist = Math.abs(dx);
       if (dx >= -20 && dist <= this.config.range && dist < closestDist) {
@@ -65,7 +62,6 @@ export class Unit {
         closest = enemy;
       }
     }
-
     return closest;
   }
 
@@ -79,15 +75,22 @@ export class Unit {
 
   _fireProjectile(game) {
     if (!game) return;
+    const projSprite = this._projectileSprite ?? null;
+    const projFrames = this.config.projectileFrames ?? null;
+    const projScale  = this.config.projectileScale  ?? 1.0;
     const proj = new Projectile({
-      x:            this.x + CONFIG.CELL_SIZE / 2,
-      y:            this.y,
-      laneIndex:    this.laneIndex,
-      speed:        CONFIG.PROJECTILE_SPEED,
-      damage:       this.config.damage,
-      direction:    1,     // travels RIGHT toward enemies
+      x:           this.x + CONFIG.CELL_SIZE / 2,
+      y:           this.y,
+      laneIndex:   this.laneIndex,
+      speed:       CONFIG.PROJECTILE_SPEED,
+      damage:      this.config.damage,
+      direction:   1,
       effectConfig: this.config.effectOnHit ?? null,
-      targets:      game.enemies,
+      targets:     game.enemies,
+      sprite:      projSprite,
+      frameLayout: projFrames,
+      animFps:     12,
+      spriteScale: projScale,
     });
     game.projectiles.push(proj);
   }
@@ -125,7 +128,6 @@ export class Unit {
 
   draw(ctx) {
     if (this._dead) return;
-
     this._drawShadow(ctx);
 
     const layout = this._currentLayout();
@@ -138,16 +140,13 @@ export class Unit {
     } else {
       this._drawFallback(ctx);
     }
-
     this._drawHealthBar(ctx);
   }
 
-  /** Soft blob shadow on the floor beneath the unit */
   _drawShadow(ctx) {
-    const shadowY  = this.y + CONFIG.CELL_SIZE * 0.42;   // near bottom of sprite
-    const shadowRX = CONFIG.CELL_SIZE * 0.30;             // horizontal radius
-    const shadowRY = CONFIG.CELL_SIZE * 0.09;             // vertical  radius (flat)
-
+    const shadowY  = this.y + CONFIG.CELL_SIZE * 0.42;
+    const shadowRX = CONFIG.CELL_SIZE * 0.30;
+    const shadowRY = CONFIG.CELL_SIZE * 0.09;
     ctx.save();
     ctx.globalAlpha = 0.38;
     ctx.fillStyle   = '#000';
@@ -157,14 +156,34 @@ export class Unit {
     ctx.restore();
   }
 
+  /**
+   * Draw a single animation frame, scaled to fit config.drawSize.
+   *
+   * Each unit definition can specify a drawSize (px) which acts as the
+   * bounding box.  The natural frame (fw × fh) is scaled down proportionally
+   * so it fits inside that box without distortion.  This handles sprites whose
+   * source artwork varies wildly in pixel dimensions (e.g. Wizard 231×190 vs
+   * Goblin 48×48).
+   *
+   * rowIndex override: when layout.rowIndex is defined, that row is used
+   * directly (needed for multi-row shared spritesheets like Arcana Archer).
+   */
   _drawFrame(ctx, sprite, layout) {
-    const fw = sprite.width  / layout.cols;
-    const fh = sprite.height / layout.rows;
-    const col = this._frameIndex % layout.cols;
-    const row = Math.floor(this._frameIndex / layout.cols);
+    const cols = layout.cols ?? 1;
+    const rows = layout.rows ?? 1;
+    const fw   = sprite.width  / cols;   // natural frame width  (source px)
+    const fh   = sprite.height / rows;   // natural frame height (source px)
 
-    const drawW = CONFIG.CELL_SIZE;
-    const drawH = CONFIG.CELL_SIZE;
+    const col = this._frameIndex % cols;
+    const row = (layout.rowIndex !== undefined)
+      ? layout.rowIndex
+      : Math.floor(this._frameIndex / cols);
+
+    // Scale frame to fit within the target box while preserving aspect ratio
+    const target = this.config.drawSize ?? CONFIG.CELL_SIZE;
+    const scale  = Math.min(target / fw, target / fh);
+    const drawW  = fw * scale;
+    const drawH  = fh * scale;
 
     ctx.drawImage(
       sprite,
@@ -177,9 +196,9 @@ export class Unit {
     ctx.save();
     ctx.fillStyle = this._animState === 'attack' ? '#ff9800' : '#4caf50';
     ctx.fillRect(this.x - 24, this.y - 24, 48, 48);
-    ctx.fillStyle = '#fff';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
+    ctx.fillStyle   = '#fff';
+    ctx.font        = '10px sans-serif';
+    ctx.textAlign   = 'center';
     ctx.fillText(this.config.label ?? 'U', this.x, this.y + 4);
     ctx.restore();
   }
@@ -188,12 +207,9 @@ export class Unit {
     const barW  = 48;
     const barH  = 5;
     const bx    = this.x - barW / 2;
-    // Place the bar a few pixels BELOW the bottom edge of the sprite
     const by    = this.y + CONFIG.CELL_SIZE / 2 + 3;
     const ratio = this.hp / this.maxHp;
-
     ctx.save();
-    // Dark background track
     ctx.fillStyle = '#222';
     ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
     ctx.fillStyle = '#333';

@@ -15,6 +15,12 @@ export class WaveManager {
     this._betweenTimer = 0;
     this._sprites      = {};      // set by Game.preload()
     this._game         = null;    // set by Game
+
+    // ── PVZ progress bar data ───────────────────────────────────────────────
+    // Exposed to UI._drawWaveProgressBar() and incremented by Game.handleEnemyDeath()
+    this.enemiesDefeatedThisWave = 0;
+    this.totalEnemiesThisWave    = 0;
+    this.currentWaveLabel        = 'Wave — / —';
   }
 
   setSprites(sprites) { this._sprites = sprites; }
@@ -22,19 +28,24 @@ export class WaveManager {
 
   startNextWave() {
     if (this.currentWave >= this.waves.length) {
-      this.isComplete = true;
+      this.isComplete    = true;
+      this.currentWaveLabel = 'All waves cleared!';
       return;
     }
 
-    const waveDef     = this.waves[this.currentWave];
-    this._elapsed     = 0;
-    this.spawnQueue   = this._buildRandomQueue(waveDef);
+    const waveDef = this.waves[this.currentWave];
+    this._elapsed = 0;
+    this.spawnQueue = this._buildRandomQueue(waveDef);
     this.currentWave++;
     this._waitingNext = false;
+
+    // Reset progress bar counters for this wave
+    this.enemiesDefeatedThisWave = 0;
+    this.totalEnemiesThisWave    = waveDef.totalEnemies;
+    this.currentWaveLabel        = `Wave ${this.currentWave} / ${this.waves.length}`;
   }
 
   // Build a flat timed spawn list by drawing randomly from the wave's pool.
-  // Lanes are also assigned randomly across all available rows.
   _buildRandomQueue(waveDef) {
     const queue = [];
     for (let i = 0; i < waveDef.totalEnemies; i++) {
@@ -43,16 +54,16 @@ export class WaveManager {
       queue.push({
         defKey,
         laneIndex,
-        spawnAt: waveDef.spawnInterval * i,   // ms from wave start
+        spawnAt: waveDef.spawnInterval * i,
       });
     }
-    return queue;   // already sorted by spawnAt (sequential)
+    return queue;
   }
 
-  // Weighted random draw from pool entries: [{ defKey, weight }, ...]
+  // Weighted random draw
   _drawFromPool(pool) {
-    const total  = pool.reduce((sum, e) => sum + e.weight, 0);
-    let   roll   = Math.random() * total;
+    const total = pool.reduce((sum, e) => sum + e.weight, 0);
+    let   roll  = Math.random() * total;
     for (const entry of pool) {
       roll -= entry.weight;
       if (roll <= 0) return entry.defKey;
@@ -64,7 +75,6 @@ export class WaveManager {
     return this.isComplete && this.spawnQueue.length === 0;
   }
 
-  // One enemy spawns at a time — next one only enters when the field is clear.
   update(deltaTime, game) {
     if (this.isComplete) return;
 
@@ -84,10 +94,10 @@ export class WaveManager {
       game.enemies.push(enemy);
     }
 
-    // All queued enemies defeated → move to next wave
     if (this.spawnQueue.length === 0 && !hasLiving) {
       if (this.currentWave >= this.waves.length) {
-        this.isComplete = true;
+        this.isComplete       = true;
+        this.currentWaveLabel = 'All waves cleared!';
       } else {
         this._waitingNext  = true;
         this._betweenTimer = this._betweenDelay;
@@ -99,10 +109,15 @@ export class WaveManager {
     const config = ENEMY_DEFS[entry.defKey];
     if (!config) throw new Error(`WaveManager: unknown enemy key "${entry.defKey}"`);
 
+    // Standard sprites
     const sprites = {
       idle:   this._sprites[config.idleSprite]   ?? null,
       attack: this._sprites[config.attackSprite] ?? null,
     };
+
+    // Boss extra sprites (Jozsi: melee + raven)
+    if (config.meleeSprite) sprites.melee = this._sprites[config.meleeSprite] ?? null;
+    if (config.ravenSprite) sprites.raven = this._sprites[config.ravenSprite] ?? null;
 
     return new Enemy({
       config,
@@ -110,7 +125,7 @@ export class WaveManager {
       y:         CONFIG.LANE_Y(entry.laneIndex),
       laneIndex: entry.laneIndex,
       sprites,
-      game,     // pass game reference so enemy can push projectiles
+      game,
     });
   }
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Garden Defense</title>
+  <title>Prophecy</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -17,28 +17,94 @@
       min-height: 100vh;
       font-family: 'Segoe UI', sans-serif;
       color: #eee;
-      background: #0a0a14;
+      background: #000;
     }
 
-    #bg-scroll {
+    /* ══════════════════════════════════
+       INTRO SEQUENCE
+    ══════════════════════════════════ */
+
+    /*
+     * Full-screen black overlay for the logo reveal.
+     * z-index: 100 keeps it above everything.
+     *
+     * Timeline (controlled by JS):
+     *   t = 0 s  : Page loads — black screen visible, music NOT playing yet.
+     *   t = 2 s  : logoReveal.mp3 begins.
+     *   t = 9 s  : (2s + 7s into music) logo.png fades in + infinite shake loop.
+     *   song end : Shake stops, intro fades out, main menu appears.
+     */
+    #intro-screen {
       position: fixed;
-      top: 0; left: 0;
-      width: 200%; height: 100%;
-      background-image: url('assets/background.jpg');
-      background-repeat: repeat-x;
-      background-size: 50% 100%;
-      background-position: 0 0;
-      animation: bgScroll 30s linear infinite;
-      z-index: 0;
-      opacity: 0.6;
+      inset: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.8s ease;
     }
-    @keyframes bgScroll {
-      from { transform: translateX(0); }
-      to   { transform: translateX(-50%); }
+    #intro-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
     }
 
-    /* ── Shared z-index layer ── */
-    #game-wrapper, #main-menu, #settings-screen, #credits-screen {
+    /*
+     * assets/logo.png — hidden until t=9s.
+     * .logo-visible triggers fade-in + infinite shake loop.
+     * JS removes the class when the song ends, stopping the shake.
+     */
+    #intro-logo {
+      max-width: 540px;
+      width: 72vw;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #intro-logo.logo-visible {
+      opacity: 1;
+      animation: logoShake 0.45s ease infinite;
+    }
+
+    @keyframes logoShake {
+      0%   { transform: translate( 0px,  0px); }
+      10%  { transform: translate(-7px,  3px); }
+      20%  { transform: translate( 7px, -5px); }
+      30%  { transform: translate(-5px,  6px); }
+      40%  { transform: translate( 6px, -4px); }
+      50%  { transform: translate(-4px,  5px); }
+      60%  { transform: translate( 5px, -3px); }
+      70%  { transform: translate(-5px,  2px); }
+      80%  { transform: translate( 3px, -5px); }
+      90%  { transform: translate(-2px,  3px); }
+      100% { transform: translate( 0px,  0px); }
+    }
+
+    /* ══════════════════════════════════
+       MENU BACKGROUND — animated GIF
+    ══════════════════════════════════ */
+    #bg-menu {
+      position: fixed;
+      inset: 0;
+      background-image: url('assets/UI/background.gif');
+      background-size: cover;
+      background-position: center;
+      z-index: 0;
+    }
+
+    /* ── Team logo pinned to bottom-right of the viewport ── */
+    #team-logo {
+      position: fixed;
+      bottom: 14px;
+      right: 18px;
+      width: 90px;
+      opacity: 0.82;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* ── Shared z-index layer for all screen panels ── */
+    #game-wrapper, #main-menu, #settings-screen,
+    #credits-screen, #faction-screen {
       position: relative;
       z-index: 1;
     }
@@ -50,56 +116,108 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 18px;
+      gap: 14px;
       animation: fadeIn 0.6s ease;
     }
-    @keyframes fadeIn { from { opacity:0; transform:translateY(-16px); } to { opacity:1; transform:none; } }
-
-    .menu-title {
-      font-size: 3.2rem;
-      font-weight: 900;
-      color: #a8ff78;
-      text-shadow: 0 0 18px #4caf50, 0 2px 4px #000;
-      letter-spacing: 2px;
-      margin-bottom: 8px;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: none; }
     }
-    .menu-subtitle {
-      font-size: 1rem;
-      color: #88cc88;
-      margin-top: -14px;
-      margin-bottom: 10px;
+
+    #menu-logo {
+      max-width: 480px;
+      width: 65vw;
+      margin-bottom: 6px;
+      filter: drop-shadow(0 0 18px rgba(100,140,255,0.5));
+    }
+
+    .menu-img-btn {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      display: block;
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+    .menu-img-btn:hover { transform: scale(1.05); }
+    .menu-img-btn img {
+      display: block;
+      width: 240px;
+      height: auto;
+    }
+
+    /* ══════════════════════════════════
+       FACTION SELECTION SCREEN
+    ══════════════════════════════════ */
+    #faction-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      background: rgba(5, 5, 20, 0.92);
+      border: 2px solid #6644aa;
+      border-radius: 14px;
+      padding: 40px 52px;
+      min-width: 360px;
+      animation: fadeIn 0.35s ease;
+      box-shadow: 0 0 50px rgba(100, 60, 180, 0.4);
+    }
+    #faction-screen.visible { display: flex; }
+
+    #faction-screen h2 {
+      font-size: 1.9rem;
+      color: #cc99ff;
+      text-shadow: 0 0 14px #6644aa;
       letter-spacing: 1px;
     }
+    #faction-screen p {
+      color: #aaa;
+      font-size: 0.9rem;
+      text-align: center;
+    }
 
-    .menu-btn {
-      width: 240px;
+    .faction-btn {
+      width: 280px;
       padding: 14px 0;
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      border: 2px solid #4caf50;
       border-radius: 8px;
       cursor: pointer;
       transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
       letter-spacing: 1px;
+      border: 2px solid transparent;
     }
-    .menu-btn-primary {
-      background: #4caf50;
-      color: #fff;
-      box-shadow: 0 0 14px #4caf5066;
+    .faction-btn-undead {
+      background: #2a1a3a; color: #cc88ff; border-color: #7744bb;
     }
-    .menu-btn-primary:hover {
-      background: #66bb6a;
-      transform: scale(1.04);
-      box-shadow: 0 0 22px #4caf5099;
+    .faction-btn-undead:hover {
+      background: #3d2260; box-shadow: 0 0 18px #7744bb88; transform: scale(1.04);
     }
-    .menu-btn-secondary {
-      background: rgba(0,0,0,0.45);
-      color: #a8ff78;
+    .faction-btn-egypt {
+      background: #2a1f0a; color: #ffcc66; border-color: #aa8833;
     }
-    .menu-btn-secondary:hover {
-      background: rgba(76,175,80,0.18);
-      transform: scale(1.03);
+    .faction-btn-egypt:hover {
+      background: #3d2e0f; box-shadow: 0 0 18px #aa883388; transform: scale(1.04);
     }
+    .faction-btn-legacy {
+      background: #0d1a0d; color: #88cc88; border-color: #336633;
+    }
+    .faction-btn-legacy:hover {
+      background: #142414; box-shadow: 0 0 18px #33663388; transform: scale(1.04);
+    }
+    .faction-back-btn {
+      margin-top: 4px;
+      padding: 8px 30px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      background: transparent;
+      color: #cc99ff;
+      border: 1.5px solid #6644aa;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.18s;
+    }
+    .faction-back-btn:hover { background: rgba(102,68,170,0.2); }
 
     /* ══════════════════════════════════
        SECONDARY SCREENS (Settings / Credits)
@@ -118,58 +236,33 @@
       box-shadow: 0 0 40px #4caf5033;
     }
     .sub-screen.visible { display: flex; }
+    .sub-screen h2 { font-size: 1.8rem; color: #a8ff78; text-shadow: 0 0 10px #4caf50; }
+    .sub-screen p, .sub-screen label { color: #ccc; font-size: 0.95rem; text-align: center; line-height: 1.6; }
 
-    .sub-screen h2 {
-      font-size: 1.8rem;
-      color: #a8ff78;
-      text-shadow: 0 0 10px #4caf50;
-    }
-    .sub-screen p, .sub-screen label {
-      color: #ccc;
-      font-size: 0.95rem;
-      text-align: center;
-      line-height: 1.6;
-    }
-
-    /* Settings rows */
     .setting-row {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      width: 100%;
-      justify-content: space-between;
+      display: flex; align-items: center; gap: 14px;
+      width: 100%; justify-content: space-between;
     }
     .setting-row label { color: #aee; font-size: 1rem; }
     .setting-row input[type=range] { width: 140px; accent-color: #4caf50; }
     .setting-row .val-display { color: #a8ff78; min-width: 36px; text-align: right; }
 
     .back-btn {
-      margin-top: 6px;
-      padding: 9px 34px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      background: transparent;
-      color: #a8ff78;
-      border: 1.5px solid #4caf50;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.18s;
+      margin-top: 6px; padding: 9px 34px;
+      font-size: 0.95rem; font-weight: 700;
+      background: transparent; color: #a8ff78;
+      border: 1.5px solid #4caf50; border-radius: 6px;
+      cursor: pointer; transition: background 0.18s;
     }
     .back-btn:hover { background: rgba(76,175,80,0.18); }
 
-    /* Credits */
     .credit-block { color: #bbb; font-size: 0.9rem; text-align: center; line-height: 1.8; }
     .credit-block strong { color: #a8ff78; }
 
     /* ══════════════════════════════════
        GAME WRAPPER
     ══════════════════════════════════ */
-    #game-wrapper {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 0;
-    }
+    #game-wrapper { display: none; flex-direction: column; align-items: center; gap: 0; }
     #game-wrapper.visible { display: flex; }
 
     #game-container {
@@ -181,67 +274,82 @@
     canvas { display: block; }
 
     #overlay {
-      position: absolute;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
+      position: absolute; inset: 0;
+      display: none; align-items: center; justify-content: center;
       background: rgba(0,0,0,0.7);
-      font-size: 2.5rem;
-      font-weight: bold;
-      border-radius: 3px;
-      pointer-events: none;
+      font-size: 2.5rem; font-weight: bold;
+      border-radius: 3px; pointer-events: none;
     }
     #overlay.visible { display: flex; }
     #overlay.win  { color: #a8ff78; }
     #overlay.lose { color: #ff6b6b; }
 
-    #game-controls {
-      display: flex;
-      gap: 10px;
-      margin-top: 10px;
-    }
+    #game-controls { display: flex; gap: 10px; margin-top: 10px; }
     .ctrl-btn {
-      padding: 9px 28px;
-      font-size: 1rem;
-      font-weight: 700;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.18s;
+      padding: 9px 28px; font-size: 1rem; font-weight: 700;
+      border-radius: 6px; cursor: pointer; transition: background 0.18s;
     }
-    #pause-btn {
-      background: #4caf50; color: #fff; border: none;
-    }
+    #pause-btn { background: #4caf50; color: #fff; border: none; }
     #pause-btn:hover { background: #66bb6a; }
-    #menu-btn-ingame {
-      background: transparent; color: #a8ff78;
-      border: 1.5px solid #4caf50;
-    }
+    #menu-btn-ingame { background: transparent; color: #a8ff78; border: 1.5px solid #4caf50; }
     #menu-btn-ingame:hover { background: rgba(76,175,80,0.18); }
 
     #instructions {
-      margin-top: 8px;
-      font-size: 0.82rem;
-      color: #aaa;
-      text-align: center;
-      max-width: 860px;
-      position: relative; z-index: 1;
+      margin-top: 8px; font-size: 0.82rem; color: #aaa;
+      text-align: center; max-width: 860px; position: relative; z-index: 1;
     }
   </style>
 </head>
 <body>
-  <div id="bg-scroll"></div>
+
+  <!-- ══ INTRO SEQUENCE ══
+       assets/logo.png is the reveal logo (team logo).
+       JS in main.js drives the timing.
+  ═══════════════════════════════════════════════════════ -->
+  <div id="intro-screen">
+    <img id="intro-logo" src="assets/logo.png" alt="MKT Games" />
+  </div>
+
+  <!-- Animated GIF background — shown on menu screens, hidden in-game -->
+  <div id="bg-menu"></div>
+
+  <!-- Team logo — always visible in bottom-right corner -->
+  <img id="team-logo" src="assets/logo.png" alt="MKT Games" />
 
   <!-- ══ MAIN MENU ══ -->
   <div id="main-menu">
-    <div class="menu-title">🌿 Garden Defense</div>
-    <div class="menu-subtitle">Defend the Ancient Tree!</div>
-    <button class="menu-btn menu-btn-primary"  id="btn-start">▶ Start Game</button>
-    <button class="menu-btn menu-btn-secondary" id="btn-settings">⚙ Settings</button>
-    <button class="menu-btn menu-btn-secondary" id="btn-credits">🏅 Credits</button>
+    <img id="menu-logo" src="assets/UI/game_logo.png" alt="Prophecy" />
+
+    <button class="menu-img-btn" id="btn-start"
+      data-normal-img="assets/UI/main_start_nActive.png"
+      data-active-img="assets/UI/main_start_Active.png">
+      <img src="assets/UI/main_start_nActive.png" alt="Play" />
+    </button>
+
+    <button class="menu-img-btn" id="btn-settings"
+      data-normal-img="assets/UI/main_music_nActive.png"
+      data-active-img="assets/UI/main_music_Active.png">
+      <img src="assets/UI/main_music_nActive.png" alt="Music" />
+    </button>
+
+    <button class="menu-img-btn" id="btn-credits"
+      data-normal-img="assets/UI/main_credits_nActive.png"
+      data-active-img="assets/UI/main_credits_Active.png">
+      <img src="assets/UI/main_credits_nActive.png" alt="Credits" />
+    </button>
   </div>
 
-  <!-- ══ SETTINGS SCREEN ══ -->
+  <!-- ══ FACTION SELECTION ══ -->
+  <div id="faction-screen">
+    <h2>⚔ Choose Your Enemy</h2>
+    <p>Select the faction you will face in battle.</p>
+    <button class="faction-btn faction-btn-undead" data-faction="undead">💀 Undead — Jozsi, Rex, Skeleton</button>
+    <button class="faction-btn faction-btn-egypt"  data-faction="egypt">🏺 Egypt — Bringer of Death</button>
+    <button class="faction-btn faction-btn-legacy" data-faction="legacy">🌿 Classic — Slade (Legacy)</button>
+    <button class="faction-back-btn" id="faction-back">← Back</button>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
   <div id="settings-screen" class="sub-screen">
     <h2>⚙ Settings</h2>
     <div class="setting-row">
@@ -259,29 +367,17 @@
       <input type="range" id="game-speed" min="50" max="200" value="100" step="25" />
       <span class="val-display" id="game-speed-val">1×</span>
     </div>
-    <p style="font-size:0.78rem;color:#666;">(Audio not yet implemented — placeholders)</p>
+    <p style="font-size:0.78rem;color:#666;">(Audio not yet fully implemented)</p>
     <button class="back-btn" id="settings-back">← Back</button>
   </div>
 
-  <!-- ══ CREDITS SCREEN ══ -->
+  <!-- ══ CREDITS ══ -->
   <div id="credits-screen" class="sub-screen">
     <h2>🏅 Credits</h2>
-    <div class="credit-block">
-      <strong>Game Design & Programming</strong><br>
-      The Garden Defense Team
-    </div>
-    <div class="credit-block">
-      <strong>Art Assets</strong><br>
-      Custom sprites &amp; tile artwork
-    </div>
-    <div class="credit-block">
-      <strong>Engine</strong><br>
-      Vanilla JS · HTML5 Canvas
-    </div>
-    <div class="credit-block">
-      <strong>Special Thanks</strong><br>
-      Plants vs. Zombies — for the inspiration 🌻
-    </div>
+    <div class="credit-block"><strong>Game Design &amp; Programming</strong><br>The Prophecy Team · MKT Games</div>
+    <div class="credit-block"><strong>Art Assets</strong><br>Custom sprites, Wizard Pack, Arcane Archer, Monster Creatures Fantasy</div>
+    <div class="credit-block"><strong>Engine</strong><br>Vanilla JS · HTML5 Canvas</div>
+    <div class="credit-block"><strong>Special Thanks</strong><br>Plants vs. Zombies — for the inspiration 🌻</div>
     <button class="back-btn" id="credits-back">← Back</button>
   </div>
 
@@ -297,7 +393,7 @@
     </div>
     <p id="instructions">
       Click a slot (bottom bar) to select a unit → Click the grid to place it. &nbsp;|&nbsp;
-      Press <kbd>P</kbd> to pause. &nbsp;|&nbsp; Defend the Ancient Tree!
+      Press <kbd>P</kbd> to pause.
     </p>
   </div>
 

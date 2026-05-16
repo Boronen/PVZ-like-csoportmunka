@@ -2,11 +2,28 @@ import { CONFIG }     from './utils/CONFIG.js';
 import { Effect }     from './Effect.js';
 import { Projectile } from './Projectile.js';
 
+// ── Small audio helper ────────────────────────────────────────────────────────
+// Plays a sound from a path string. Returns the Audio instance.
+// Uses a tiny per-key cache so we don't create hundreds of objects.
+const _audioCache = {};
+function _playSound(src, volume = 0.6) {
+  if (!src) return null;
+  if (!_audioCache[src]) {
+    _audioCache[src] = new Audio(src);
+    _audioCache[src].volume = volume;
+  }
+  const a = _audioCache[src];
+  a.currentTime = 0;
+  a.play().catch(() => {});   // silent if autoplay blocked
+  return a;
+}
+
 // Single concrete enemy class — all type differences live in config.
 export class Enemy {
   /**
    * @param {{ config: object, x: number, y: number, laneIndex: number,
-   *            sprites: { idle: HTMLImageElement, attack: HTMLImageElement },
+   *            sprites: { idle: HTMLImageElement, attack: HTMLImageElement,
+   *                       melee?: HTMLImageElement, raven?: HTMLImageElement },
    *            game: Game }} opts
    */
   constructor({ config, x, y, laneIndex, sprites, game }) {
@@ -19,8 +36,8 @@ export class Enemy {
     this.maxHp         = config.hp;
     this.movementSpeed = config.movementSpeed;
 
-    this._sprites      = sprites;   // { idle, attack }
-    this._game         = game;      // needed to push projectiles
+    this._sprites      = sprites;   // { idle, attack, melee?, raven? }
+    this._game         = game;
     this.effects       = [];
 
     // Animation state
@@ -33,30 +50,68 @@ export class Enemy {
     this._attackTimer = 0;
     this._dead        = false;
     this._target      = null;
+
+    // Sound state — throttle looping sounds
+    this._moveSoundTimer  = 0;
+    this._spawnSoundDone  = false;
+
+    // Play spawn sound if defined
+    if (config.sounds?.spawn) {
+      _playSound(config.sounds.spawn, 0.65);
+      this._spawnSoundDone = true;
+    }
   }
 
   update(deltaTime, units, player) {
     if (this._dead) return;
 
-    this._lastUnits = units;   // stored so move() can run collision without extra params
+    this._lastUnits = units;
     this._tickEffects(deltaTime);
 
     this._target = this._findTarget(units);
 
-    if (this._target) {
-      this._handleAttack(deltaTime, player);
+    // ── Boss (Jozsi) behaviour switching ─────────────────────────────────────
+    if (this.config.isBoss && this._target) {
+      const dx   = this.x - this._target.x;
+      const dist = Math.abs(dx);
+      const meleeRange = 90;
 
+      if (dist <= meleeRange) {
+        // Melee mode
+        this._bossMode = 'melee';
+        this._updateAnimState('melee');
+        this._handleAttackWithMode(deltaTime, player, 'melee');
+        // stop movement when in melee contact
+      } else {
+        // Ranged mode — keep walking
+        this._bossMode = 'ranged';
+        this._updateAnimState('attack');
+        this._handleAttackWithMode(deltaTime, player, 'ranged');
+        this.move(deltaTime);
+      }
+    } else if (this._target) {
+      this._handleAttack(deltaTime, player);
       if (this.config.onAttack === 'melee') {
-        // Melee enemies stop and face their target
         this._updateAnimState('attack');
       } else {
-        // Projectile enemies keep walking and shoot while moving
         this._updateAnimState('attack');
         this.move(deltaTime);
       }
     } else {
+      this._bossMode = null;
       this._updateAnimState('idle');
       this.move(deltaTime);
+    }
+
+    // Movement sound (throttled — play every 1.2 s while moving)
+    if (this._animState === 'idle' && this.config.sounds?.move) {
+      this._moveSoundTimer += deltaTime;
+      if (this._moveSoundTimer >= 1.2) {
+        this._moveSoundTimer = 0;
+        _playSound(this.config.sounds.move, 0.35);
+      }
+    } else {
+      this._moveSoundTimer = 0;
     }
 
     this._advanceFrame();
@@ -68,45 +123,35 @@ export class Enemy {
   }
 
   move(deltaTime) {
-    // Physical blocking: don't overlap a unit's body
     if (this._isBlockedBy(this._lastUnits)) return;
     this.x -= this.movementSpeed * deltaTime;
   }
 
-  // True when a same-lane unit is close enough to physically block this enemy
   _isBlockedBy(units) {
     if (!units) return false;
-    const bodyRadius = CONFIG.CELL_SIZE * 0.55;   // ~44px — half a cell
+    const bodyRadius = CONFIG.CELL_SIZE * 0.55;
     for (const unit of units) {
       if (unit.isDead()) continue;
       if (unit.laneIndex !== this.laneIndex) continue;
       const dx = this.x - unit.x;
-      // Unit is directly ahead (to the left) and within body radius
       if (dx >= 0 && dx <= bodyRadius) return true;
     }
     return false;
   }
 
-  // Find the closest unit in the same lane that is within attack range.
-  // A small forward tolerance (CELL_SIZE/2) prevents the enemy from walking
-  // past a unit due to frame-timing before the target lock fires.
   _findTarget(units) {
     let closest     = null;
     let closestDist = Infinity;
-
     for (const unit of units) {
       if (unit.isDead()) continue;
       if (unit.laneIndex !== this.laneIndex) continue;
-      // dx > 0: unit is to the LEFT of the enemy (in its path)
       const dx   = this.x - unit.x;
       const dist = Math.abs(dx);
-      // Allow small negative dx so Slade locks on even if 1 frame late
       if (dx >= -(CONFIG.CELL_SIZE / 2) && dist <= this.config.range && dist < closestDist) {
         closestDist = dist;
         closest = unit;
       }
     }
-
     return closest;
   }
 
@@ -119,13 +164,30 @@ export class Enemy {
     }
   }
 
+  // Boss-specific attack handler — picks melee or ranged based on mode
+  _handleAttackWithMode(deltaTime, player, mode) {
+    this._attackTimer += deltaTime;
+    const interval = 1 / this.config.attackSpeed;
+    if (this._attackTimer >= interval) {
+      this._attackTimer = 0;
+      if (mode === 'melee') {
+        if (this._target && !this._target.isDead()) {
+          this._target.takeDamage(this.config.damage);
+          if (this.config.sounds?.melee) _playSound(this.config.sounds.melee, 0.7);
+        }
+      } else {
+        // Ranged — fire raven projectile
+        this._fireRavenProjectile();
+        if (this.config.sounds?.ranged) _playSound(this.config.sounds.ranged, 0.6);
+      }
+    }
+  }
+
   attack(target, player) {
     if (!target || target.isDead()) return;
-
     if (this.config.onAttack === 'projectile') {
       this._fireProjectile();
     } else {
-      // Melee: damage directly
       target.takeDamage(this.config.damage);
     }
   }
@@ -138,9 +200,30 @@ export class Enemy {
       laneIndex:  this.laneIndex,
       speed:      CONFIG.PROJECTILE_SPEED,
       damage:     this.config.damage,
-      direction:  -1,          // travels LEFT toward units / base
+      direction:  -1,
       effectConfig: this.config.effectOnHit ?? null,
       targets:    this._game.units,
+    });
+    this._game.projectiles.push(proj);
+  }
+
+  // Jozsi's raven projectile — uses the raven sprite sheet if available
+  _fireRavenProjectile() {
+    if (!this._game) return;
+    const ravenSprite  = this._sprites.raven  ?? null;
+    const ravenFrames  = this.config.ravenFrames ?? null;
+    const proj = new Projectile({
+      x:          this.x - CONFIG.CELL_SIZE / 2,
+      y:          this.y,
+      laneIndex:  this.laneIndex,
+      speed:      CONFIG.PROJECTILE_SPEED * 0.8,
+      damage:     this.config.damage,
+      direction:  -1,
+      effectConfig: null,
+      targets:    this._game.units,
+      sprite:     ravenSprite,
+      frameLayout: ravenFrames,
+      animFps:    10,
     });
     this._game.projectiles.push(proj);
   }
@@ -150,9 +233,7 @@ export class Enemy {
     if (this.hp <= 0) this._dead = true;
   }
 
-  addEffect(effect) {
-    this.effects.push(effect);
-  }
+  addEffect(effect) { this.effects.push(effect); }
 
   _tickEffects(deltaTime) {
     for (const e of this.effects) e.update(deltaTime);
@@ -183,9 +264,21 @@ export class Enemy {
   }
 
   _currentLayout() {
+    if (this._animState === 'melee' && this.config.meleeFrames) {
+      return this.config.meleeFrames;
+    }
     return this._animState === 'attack'
       ? this.config.attackFrames
       : this.config.idleFrames;
+  }
+
+  _currentSprite() {
+    if (this._animState === 'melee' && this._sprites.melee) {
+      return this._sprites.melee;
+    }
+    return this._animState === 'attack'
+      ? this._sprites.attack
+      : this._sprites.idle;
   }
 
   draw(ctx) {
@@ -193,10 +286,15 @@ export class Enemy {
 
     this._drawShadow(ctx);
 
+    // ── Individual-frame mode (Bringer of Death, etc.) ────────────────────────
+    if (this.config.useIndividualFrames) {
+      this._drawIndividualFrame(ctx);
+      this._drawHealthBar(ctx);
+      return;
+    }
+
     const layout = this._currentLayout();
-    const sprite = this._animState === 'attack'
-      ? this._sprites.attack
-      : this._sprites.idle;
+    const sprite = this._currentSprite();
 
     if (sprite) {
       this._drawFrame(ctx, sprite, layout);
@@ -207,12 +305,10 @@ export class Enemy {
     this._drawHealthBar(ctx);
   }
 
-  /** Soft blob shadow on the floor beneath the enemy */
   _drawShadow(ctx) {
     const shadowY  = this.y + CONFIG.CELL_SIZE * 0.42;
     const shadowRX = CONFIG.CELL_SIZE * 0.30;
     const shadowRY = CONFIG.CELL_SIZE * 0.09;
-
     ctx.save();
     ctx.globalAlpha = 0.38;
     ctx.fillStyle   = '#000';
@@ -222,30 +318,72 @@ export class Enemy {
     ctx.restore();
   }
 
+  /**
+   * Draw a single animation frame, scaled to fit config.drawSize.
+   *
+   * The natural frame (fw × fh) is scaled proportionally to fit inside the
+   * target box so large sprites (Jozsi 240×426) don't overflow and small
+   * sprites aren't blown up.
+   *
+   * rowIndex override: when layout.rowIndex is defined that row is used
+   * directly (Skeleton shared sheet).
+   */
   _drawFrame(ctx, sprite, layout) {
-    const fw = sprite.width  / layout.cols;
-    const fh = sprite.height / layout.rows;
-    const col = this._frameIndex % layout.cols;
-    const row = Math.floor(this._frameIndex / layout.cols);
+    const cols = layout.cols ?? 1;
+    const rows = layout.rows ?? 1;
+    const fw   = sprite.width  / cols;
+    const fh   = sprite.height / rows;
 
-    const drawW = CONFIG.CELL_SIZE;
-    const drawH = CONFIG.CELL_SIZE;
+    const col = this._frameIndex % cols;
+    const row = (layout.rowIndex !== undefined)
+      ? layout.rowIndex
+      : Math.floor(this._frameIndex / cols);
 
-    // The Slade sprite sheet already faces left — draw it straight.
+    const target  = this.config.drawSize  ?? CONFIG.CELL_SIZE;
+    const offsetX = this.config.drawOffsetX ?? 0;
+    const offsetY = this.config.drawOffsetY ?? 0;
+    const scale   = Math.min(target / fw, target / fh);
+    const drawW   = fw * scale;
+    const drawH   = fh * scale;
+
     ctx.drawImage(
       sprite,
       col * fw, row * fh, fw, fh,
-      this.x - drawW / 2, this.y - drawH / 2, drawW, drawH
+      this.x - drawW / 2 + offsetX, this.y - drawH / 2 + offsetY, drawW, drawH
     );
+  }
+
+  /**
+   * Individual-frame rendering (e.g. Bringer of Death).
+   * Each PNG is scaled to fit config.drawSize, preserving aspect ratio.
+   */
+  _drawIndividualFrame(ctx) {
+    const files = (this._animState === 'attack')
+      ? this.config.attackFrameFiles
+      : this.config.idleFrameFiles;
+    if (!files || files.length === 0) { this._drawFallback(ctx); return; }
+
+    const key = files[this._frameIndex % files.length];
+    const img = this._game?._sprites?.[key] ?? null;
+
+    if (img) {
+      const target = this.config.drawSize ?? CONFIG.CELL_SIZE;
+      const scale  = Math.min(target / img.width, target / img.height);
+      const drawW  = img.width  * scale;
+      const drawH  = img.height * scale;
+      ctx.drawImage(img, this.x - drawW / 2, this.y - drawH / 2, drawW, drawH);
+    } else {
+      this._drawFallback(ctx);
+    }
   }
 
   _drawFallback(ctx) {
     ctx.save();
     ctx.fillStyle = this._animState === 'attack' ? '#e53935' : '#9c27b0';
     ctx.fillRect(this.x - 24, this.y - 24, 48, 48);
-    ctx.fillStyle = '#fff';
-    ctx.font = '10px sans-serif';
-    ctx.textAlign = 'center';
+    ctx.fillStyle   = '#fff';
+    ctx.font        = '10px sans-serif';
+    ctx.textAlign   = 'center';
     ctx.fillText(this.config.label ?? 'E', this.x, this.y + 4);
     ctx.restore();
   }
@@ -254,12 +392,10 @@ export class Enemy {
     const barW  = 48;
     const barH  = 5;
     const bx    = this.x - barW / 2;
-    // Place the bar a few pixels BELOW the bottom edge of the sprite
     const by    = this.y + CONFIG.CELL_SIZE / 2 + 3;
     const ratio = this.hp / this.maxHp;
 
     ctx.save();
-    // Dark background track for visibility
     ctx.fillStyle = '#222';
     ctx.fillRect(bx - 1, by - 1, barW + 2, barH + 2);
     ctx.fillStyle = '#333';

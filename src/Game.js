@@ -12,15 +12,26 @@ import { WAVES }        from './data/waves.js';
 
 // Main controller — owns all subsystems and drives the game loop.
 export class Game {
-  constructor(canvas) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {{ faction?: string }} opts
+   *   faction — which enemy faction to use: 'undead' | 'egypt' | 'legacy'
+   *             Defaults to 'undead' if omitted.
+   */
+  constructor(canvas, { faction = 'undead' } = {}) {
     this.canvas  = canvas;
     this.ctx     = canvas.getContext('2d');
     canvas.width  = CONFIG.CANVAS_WIDTH;
     canvas.height = CONFIG.CANVAS_HEIGHT;
 
+    this.faction = faction;
+
+    // Filter waves to the chosen faction
+    const factionWaves = WAVES.filter(w => w.faction === faction);
+
     this.grid        = new Grid(CONFIG.COLS, CONFIG.ROWS, CONFIG.CELL_SIZE);
     this.player      = new Player();
-    this.waveManager = new WaveManager(WAVES);
+    this.waveManager = new WaveManager(factionWaves);
     this.ui          = new UI();
     this.events      = new EventEmitter();
     this._loader     = new SpriteLoader();
@@ -50,21 +61,45 @@ export class Game {
   }
 
   async preload() {
-    const unitSrcs  = Object.values(UNIT_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
-    const enemySrcs = Object.values(ENEMY_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
-    const mapSrcs   = ['assets/map/Stone_floor.jpg', 'assets/map/Tree_main.png'];
-    const bgSrc     = 'assets/background.jpg';
+    // Unit sprites (idle + attack)
+    const unitSrcs = Object.values(UNIT_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
 
-    this._sprites = await this._loader.loadAll([...unitSrcs, ...enemySrcs, ...mapSrcs, bgSrc])
+    // Unit projectile sprites (optional per-unit)
+    const unitProjSrcs = Object.values(UNIT_DEFS)
+      .filter(d => d.projectileSprite)
+      .map(d => d.projectileSprite);
+
+    // Enemy sprites — only load the active faction + legacy fallback
+    const factionEnemyKeys = Object.values(ENEMY_DEFS)
+      .filter(d => d.faction === this.faction || d.faction === 'legacy');
+
+    const enemySrcs = factionEnemyKeys.flatMap(d => {
+      const srcs = [d.idleSprite, d.attackSprite];
+      if (d.meleeSprite) srcs.push(d.meleeSprite);
+      if (d.ravenSprite) srcs.push(d.ravenSprite);
+      // Individual frame files (Bringer of Death, etc.)
+      if (d.useIndividualFrames) {
+        if (d.idleFrameFiles)   srcs.push(...d.idleFrameFiles);
+        if (d.attackFrameFiles) srcs.push(...d.attackFrameFiles);
+      }
+      return srcs;
+    });
+
+    const mapSrcs = ['assets/map/Stone_floor.jpg', 'assets/map/Tree_main.png'];
+    const bgSrc   = 'assets/background.jpg';
+
+    const allSrcs = [...new Set([
+      ...unitSrcs, ...unitProjSrcs, ...enemySrcs, ...mapSrcs, bgSrc
+    ].filter(Boolean))];
+
+    this._sprites = await this._loader.loadAll(allSrcs)
       .catch(() => this._loader.loadAll([...unitSrcs, ...enemySrcs]));
 
     this._bgImage    = this._sprites['assets/background.jpg']      ?? null;
     this._stoneFloor = this._sprites['assets/map/Stone_floor.jpg'] ?? null;
     this._treeMain   = this._sprites['assets/map/Tree_main.png']   ?? null;
 
-    // Pass stone floor to grid so it can tile it
     this.grid.stoneFloorImg = this._stoneFloor;
-
     this.waveManager.setSprites(this._sprites);
   }
 
@@ -119,7 +154,6 @@ export class Game {
     this.checkGameOver();
   }
 
-  // Passively drip 5 money per second
   _tickPassiveIncome(deltaTime) {
     this.player.earnMoney(5 * deltaTime);
   }
@@ -139,6 +173,10 @@ export class Game {
   handleEnemyDeath(enemy) {
     if (enemy.hp <= 0 && !enemy.isAtBase()) {
       this.player.earnMoney(enemy.config.reward);
+    }
+    // Track for PVZ progress bar
+    if (this.waveManager.enemiesDefeatedThisWave !== undefined) {
+      this.waveManager.enemiesDefeatedThisWave++;
     }
     this.events.emit('enemyDied', enemy);
   }
@@ -170,11 +208,9 @@ export class Game {
     const { ctx } = this;
     ctx.clearRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT);
 
-    // 1. Solid dark ground as base layer
     ctx.fillStyle = '#1a2a1a';
     ctx.fillRect(0, 0, CONFIG.CANVAS_WIDTH, CONFIG.GAME_AREA_HEIGHT);
 
-    // 2. Background image — subtle atmospheric overlay behind all game objects
     if (this._bgImage) {
       ctx.save();
       ctx.globalAlpha = 0.22;
@@ -182,43 +218,29 @@ export class Game {
       ctx.restore();
     }
 
-    // 3. 3D-style tiled floor (stone + danger zone overlay) via Grid
     this.grid.draw(ctx);
-
-    // 4. Big Tree at danger zone (col 0) — the object to defend
     this._drawDefenseTree(ctx);
 
-    // 5. Game objects
     for (const unit  of this.units)       unit.draw(ctx);
     for (const enemy of this.enemies)     enemy.draw(ctx);
     for (const proj  of this.projectiles) proj.draw(ctx);
 
-    // 6. HUD
     this.ui.draw(ctx, this.player, this.waveManager);
 
     if (this.state === 'paused') this._drawPauseOverlay(ctx);
   }
 
-  /**
-   * Draw the big Tree_main sprite centred in the danger column (col 0).
-   * The tree is larger than one cell — it spans the full game-area height
-   * and is anchored to the bottom of the game area so it looks "planted".
-   */
   _drawDefenseTree(ctx) {
     const cs = CONFIG.CELL_SIZE;
-
-    // Tree occupies col 0 horizontally; vertically fills the game area
     const treeW = cs * 1.6;
     const treeH = CONFIG.GAME_AREA_HEIGHT * 0.92;
-    const tx    = cs * 0.5 - treeW / 2;           // centred in col 0
-    const ty    = CONFIG.GAME_AREA_HEIGHT - treeH; // planted at bottom
+    const tx    = cs * 0.5 - treeW / 2;
+    const ty    = CONFIG.GAME_AREA_HEIGHT - treeH;
 
     ctx.save();
-
     if (this._treeMain) {
       ctx.drawImage(this._treeMain, tx, ty, treeW, treeH);
     } else {
-      // Fallback: draw a stylised tree shape
       ctx.fillStyle = '#5d4037';
       ctx.fillRect(tx + treeW * 0.38, ty + treeH * 0.55, treeW * 0.24, treeH * 0.45);
       ctx.fillStyle = '#2e7d32';
@@ -230,8 +252,6 @@ export class Game {
       ctx.arc(tx + treeW / 2, ty + treeH * 0.22, treeW * 0.36, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    // Label so it's always clear what is being defended
     ctx.font      = 'bold 9px sans-serif';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
@@ -282,14 +302,22 @@ export class Game {
     if (!result) return;
 
     const { config, worldX, worldY, col, row } = result;
+
+    // Resolve sprites — idleSprite and attackSprite may be the same sheet
     const sprites = {
       idle:   this._sprites[config.idleSprite]   ?? null,
       attack: this._sprites[config.attackSprite] ?? null,
     };
 
+    // Resolve optional projectile sprite
+    const projSprite = config.projectileSprite
+      ? (this._sprites[config.projectileSprite] ?? null)
+      : null;
+
     const unit = new Unit({
       config, x: worldX, y: worldY, col, row,
       laneIndex: row, sprites,
+      projectileSprite: projSprite,
       game: this,
     });
 
