@@ -413,3 +413,61 @@ canvas { display: block; }
   #game-controls { gap: 4px; }
   .ctrl-btn { font-size: 0.82rem; padding: 8px 10px; }
 }
+
+/* ══════════════════════════════════
+   LANDSCAPE MOBILE
+   The game canvas is 800×560 (wider than tall) — landscape is the ideal
+   orientation.  We scale the canvas to fill the viewport height instead
+   of the viewport width, and collapse the non-essential chrome.
+══════════════════════════════════ */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* Scale canvas to fill available height, centre horizontally */
+  #game-container canvas {
+    width: auto;
+    height: calc(100vh - 60px);   /* leave room for controls row */
+    max-width: 100vw;
+  }
+
+  /* Tighter controls row */
+  #game-controls {
+    margin-top: 4px;
+    gap: 6px;
+  }
+  .ctrl-btn { padding: 6px 14px; font-size: 0.85rem; }
+  #btn-ingame-settings { padding: 6px 10px; }
+
+  /* In-game settings panel — left side of canvas in landscape */
+  #ingame-settings {
+    top: 6px;
+    right: 6px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    min-width: 180px;
+  }
+
+  /* Hide instructions to save vertical space */
+  #instructions { display: none; }
+
+  /* Compact menu buttons in landscape */
+  .menu-img-btn img { width: 36vw; max-width: 180px; }
+
+  #faction-screen {
+    padding: 14px 24px;
+    gap: 10px;
+  }
+  #faction-screen h2 { font-size: 1.2rem; }
+  .faction-btn { padding: 10px 0; font-size: 0.9rem; }
+
+  .sub-screen { padding: 16px 24px; gap: 10px; }
+  .sub-screen h2 { font-size: 1.2rem; }
+}
+
+/* Landscape on tablets (≥ 768px height — canvas fits in width mode) */
+@media (orientation: landscape) and (min-height: 500px) {
+  #game-container canvas {
+    width: 100%;
+    max-width: 800px;
+    height: auto;
+  }
+}
