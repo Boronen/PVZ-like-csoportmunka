@@ -1,5 +1,10 @@
 import { Game } from './Game.js';
 
+// Prevent iOS rubber-band scroll and double-tap zoom on the game canvas
+document.addEventListener('touchmove', e => {
+  if (e.target.closest('#game-container')) e.preventDefault();
+}, { passive: false });
+
 // ── Intro Sequence ───────────────────────────────────────────────────────────
 //
 // Timing is driven by the AUDIO POSITION (timeupdate), NOT by setTimeout.
@@ -19,7 +24,7 @@ let logoMusic        = null;
 let logoShownInIntro = false;   // guard: show logo only once per load
 
 function _startIntroAudio() {
-  logoMusic = new Audio('assets/musics/logoReveal.mp3');
+  logoMusic = new Audio('assets/sounds/logoReveal.mp3');
   logoMusic.volume = 0.85;
 
   // ── Drive logo reveal from audio currentTime ──────────────────────────────
@@ -65,7 +70,7 @@ let menuMusic = null;
 
 function startMenuMusic() {
   if (menuMusic) return;
-  menuMusic = new Audio('assets/musics/main_theme_faction_egypt.mp3');
+  menuMusic = new Audio('assets/sounds/main_theme_faction_egypt.mp3');
   menuMusic.loop   = true;
   menuMusic.volume = 0.5;
   menuMusic.play().catch(() => {
@@ -80,44 +85,86 @@ function stopMenuMusic() {
   menuMusic.currentTime = 0;
 }
 
-// ── Faction music map ─────────────────────────────────────────────────────────
+// ── Faction music playlists ───────────────────────────────────────────────────
 //
-// Each faction gets its own looping background track during gameplay.
-const FACTION_MUSIC = {
-  undead: 'assets/musics/main_theme_faction_undead_v2.mp3',
-  egypt:  'assets/musics/main_theme_faction_egypt_v2.mp3',
-  water:  'assets/musics/main_theme_faction_water.mp3',
-  legacy: 'assets/musics/main_theme_faction_egypt.mp3',
+// Two-track sequential playlists per faction.
+// Track 0 plays first; when it ends, track 1 starts.
+// When track 1 ends, track 0 plays again (playlist loops forever).
+const FACTION_PLAYLIST = {
+  undead: [
+    'assets/sounds/main_theme_faction_undead.mp3',
+    'assets/sounds/main_theme_faction_undead_v2.mp3',
+  ],
+  egypt: [
+    'assets/sounds/main_theme_faction_egypt.mp3',
+    'assets/sounds/main_theme_faction_egypt_v2.mp3',
+  ],
+  water: [
+    'assets/sounds/main_theme_faction_water.mp3',
+  ],
+  legacy: [
+    'assets/sounds/main_theme_faction_egypt.mp3',
+    'assets/sounds/main_theme_faction_egypt_v2.mp3',
+  ],
 };
 
-let gameMusic = null;
+let gameMusic        = null;   // currently playing Audio node
+let _gmPlaylist      = [];     // active playlist array
+let _gmTrackIndex    = 0;      // which track is playing
+
+function _playTrack(index) {
+  const src = _gmPlaylist[index];
+  if (!src) return;
+
+  // Tear down the previous node without nulling gameMusic yet
+  if (gameMusic) {
+    gameMusic.pause();
+    gameMusic.onended = null;
+  }
+
+  const vol = Number(document.getElementById('vol-music')?.value ?? 60) / 100;
+  gameMusic = new Audio(src);
+  gameMusic.volume = vol;
+  _gmTrackIndex = index;
+
+  // When this track ends, advance to next (wraps around)
+  gameMusic.addEventListener('ended', () => {
+    const next = (_gmTrackIndex + 1) % _gmPlaylist.length;
+    _playTrack(next);
+  });
+
+  gameMusic.play().catch(() => {});
+}
 
 function startGameMusic(faction) {
   stopGameMusic();
-  const src = FACTION_MUSIC[faction] ?? FACTION_MUSIC.legacy;
-  gameMusic = new Audio(src);
-  gameMusic.loop   = true;
-  gameMusic.volume = 0.45;
-  gameMusic.play().catch(() => {});
+  _gmPlaylist   = FACTION_PLAYLIST[faction] ?? FACTION_PLAYLIST.legacy;
+  _gmTrackIndex = 0;
+  _playTrack(0);
 }
 
 function stopGameMusic() {
   if (!gameMusic) return;
   gameMusic.pause();
+  gameMusic.onended = null;
   gameMusic.currentTime = 0;
-  gameMusic = null;
+  gameMusic     = null;
+  _gmPlaylist   = [];
+  _gmTrackIndex = 0;
 }
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
-const mainMenu      = document.getElementById('main-menu');
-const factionScr    = document.getElementById('faction-screen');
-const settingsScr   = document.getElementById('settings-screen');
-const creditsScr    = document.getElementById('credits-screen');
-const gameWrapper   = document.getElementById('game-wrapper');
-const canvas        = document.getElementById('gameCanvas');
-const pauseBtn      = document.getElementById('pause-btn');
-const menuBtnIngame = document.getElementById('menu-btn-ingame');
-const bgMenu        = document.getElementById('bg-menu');
+const mainMenu        = document.getElementById('main-menu');
+const factionScr      = document.getElementById('faction-screen');
+const settingsScr     = document.getElementById('settings-screen');
+const creditsScr      = document.getElementById('credits-screen');
+const gameWrapper     = document.getElementById('game-wrapper');
+const canvas          = document.getElementById('gameCanvas');
+const pauseBtn        = document.getElementById('pause-btn');
+const menuBtnIngame   = document.getElementById('menu-btn-ingame');
+const bgMenu          = document.getElementById('bg-menu');
+const btnIngameSettings = document.getElementById('btn-ingame-settings');
+const ingameSettings    = document.getElementById('ingame-settings');
 
 // ── Screen management ─────────────────────────────────────────────────────────
 const ALL_SCREENS = [mainMenu, factionScr, settingsScr, creditsScr, gameWrapper];
@@ -171,7 +218,15 @@ document.getElementById('settings-back')?.addEventListener('click', () => showOn
 document.getElementById('credits-back')?.addEventListener('click',  () => showOnly(mainMenu));
 document.getElementById('faction-back')?.addEventListener('click',  () => showOnly(mainMenu));
 
+// ── Game instance (declared early — syncPair closures reference it) ──────────
+let game = null;
+
 // ── Settings sliders — wired to live audio + game speed ──────────────────────
+//
+// bindRange wires a single <input type=range> to its display span and an
+// optional onChange callback.  syncPair keeps a main-screen slider and an
+// in-game slider in lock-step so both always reflect the same value.
+
 function bindRange(id, displayId, fmt, onChange) {
   const el   = document.getElementById(id);
   const disp = document.getElementById(displayId);
@@ -183,8 +238,33 @@ function bindRange(id, displayId, fmt, onChange) {
   });
 }
 
-// Music volume: live-updates whichever track is currently playing
-bindRange('vol-music', 'vol-music-val', v => v, vol => {
+// Keeps a main-screen slider and an in-game slider perfectly in sync.
+// Whichever one the user moves, the other mirrors it immediately.
+function syncPair(mainId, igId, fmt, onChange) {
+  const main = document.getElementById(mainId);
+  const ig   = document.getElementById(igId);
+  if (!main || !ig) return;
+
+  function applyValue(val) {
+    const num = Number(val);
+    main.value = num;
+    ig.value   = num;
+    const mainDisp = document.getElementById(mainId + '-val');
+    const igDisp   = document.getElementById(igId   + '-val');
+    if (mainDisp) mainDisp.textContent = fmt(num);
+    if (igDisp)   igDisp.textContent   = fmt(num);
+    if (onChange) onChange(num);
+  }
+
+  // Initialise both displays from main slider's current value
+  applyValue(main.value);
+
+  main.addEventListener('input', () => applyValue(main.value));
+  ig.addEventListener('input',   () => applyValue(ig.value));
+}
+
+// Music volume: synced across both panels; updates whichever track plays
+syncPair('vol-music', 'ig-vol-music', v => v, vol => {
   const normalized = vol / 100;
   if (menuMusic) menuMusic.volume = normalized;
   if (gameMusic) gameMusic.volume = normalized;
@@ -192,14 +272,19 @@ bindRange('vol-music', 'vol-music-val', v => v, vol => {
 
 bindRange('vol-sfx', 'vol-sfx-val', v => v);
 
-// Game speed: feeds into game.timeScale so the loop multiplies deltaTime
-bindRange('game-speed', 'game-speed-val', v => (v / 100) + '×', speed => {
+// Game speed: synced across both panels; feeds into game.timeScale
+syncPair('game-speed', 'ig-game-speed', v => (v / 100) + '×', speed => {
   if (game) game.timeScale = speed / 100;
 });
 
-// ── Game instance ─────────────────────────────────────────────────────────────
-let game = null;
+// ── In-game settings toggle ───────────────────────────────────────────────────
+btnIngameSettings?.addEventListener('click', () => {
+  if (!ingameSettings) return;
+  const isVisible = ingameSettings.style.display === 'block';
+  ingameSettings.style.display = isVisible ? 'none' : 'block';
+});
 
+// ── Game launch ───────────────────────────────────────────────────────────────
 async function launchGame(faction) {
   stopMenuMusic();
   showOnly(gameWrapper);

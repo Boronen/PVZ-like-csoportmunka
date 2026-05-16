@@ -1,5 +1,9 @@
 import { CONFIG } from '../utils/CONFIG.js';
 
+// Extra pixels added to each side of a slot's hit-test rectangle so that
+// tapping near (but not exactly on) a slot still registers on touch screens.
+const HIT_PADDING = 8;
+
 // Renders the 6-slot plant selection bar at the bottom of the canvas.
 export class SlotBar {
   constructor() {
@@ -9,13 +13,14 @@ export class SlotBar {
     this.padX   = 20;
   }
 
-  // Returns the slot index (0-5) for a given canvas click, or -1 if no slot hit
+  // Returns the slot index (0-5) for a given canvas click, or -1 if no slot hit.
+  // The hit area is expanded by HIT_PADDING on every side for easier touch input.
   hitTest(mouseX, mouseY, barY) {
     for (let i = 0; i < 6; i++) {
       const x = this.padX + i * (this.slotW + this.gap);
       const y = barY + (CONFIG.UI_HEIGHT / 2 - this.slotH / 2);
-      if (mouseX >= x && mouseX <= x + this.slotW &&
-          mouseY >= y && mouseY <= y + this.slotH) {
+      if (mouseX >= x - HIT_PADDING && mouseX <= x + this.slotW + HIT_PADDING &&
+          mouseY >= y - HIT_PADDING && mouseY <= y + this.slotH + HIT_PADDING) {
         return i;
       }
     }

@@ -1,5 +1,7 @@
-import { CONFIG }     from './utils/CONFIG.js';
-import { Projectile } from './Projectile.js';
+import { CONFIG }          from './utils/CONFIG.js';
+import { Projectile }      from './Projectile.js';
+import { createAnim, advanceFrame, resetAnim } from './utils/Animator.js';
+import { drawSpriteFrame } from './utils/drawFrame.js';
 
 // Single concrete ally unit class — all type differences live in config.
 export class Unit {
@@ -25,10 +27,9 @@ export class Unit {
     this._projectileSprite = projectileSprite;
     this._game             = game;
 
-    this._animState     = 'idle';
-    this._frameIndex    = 0;
-    this._frameTimer    = 0;
-    this._frameDuration = 1 / CONFIG.UNIT_ANIM_FPS;
+    this._animState = 'idle';
+    // Shared anim-state object — mutated in place by advanceFrame()
+    this._anim      = createAnim(CONFIG.UNIT_ANIM_FPS);
 
     this._attackTimer = 0;
     this._dead        = false;
@@ -39,7 +40,7 @@ export class Unit {
 
     const target = this._findTarget(enemies);
     this._updateAnimState(target !== null);
-    this._advanceFrame();
+    advanceFrame(this._anim, this._currentLayout());
 
     this._attackTimer += deltaTime;
     const attackInterval = 1 / this.config.attackSpeed;
@@ -105,18 +106,8 @@ export class Unit {
   _updateAnimState(hasTarget) {
     const desired = hasTarget ? 'attack' : 'idle';
     if (desired !== this._animState) {
-      this._animState  = desired;
-      this._frameIndex = 0;
-      this._frameTimer = 0;
-    }
-  }
-
-  _advanceFrame() {
-    this._frameTimer += 1 / 60;
-    if (this._frameTimer >= this._frameDuration) {
-      this._frameTimer -= this._frameDuration;
-      const layout = this._currentLayout();
-      this._frameIndex = (this._frameIndex + 1) % layout.total;
+      this._animState = desired;
+      resetAnim(this._anim);
     }
   }
 
@@ -136,7 +127,12 @@ export class Unit {
       : this._sprites.idle;
 
     if (sprite) {
-      this._drawFrame(ctx, sprite, layout);
+      // Unit configs don't use flipX or draw offsets — pass defaults
+      drawSpriteFrame(
+        ctx, sprite, layout, this._anim.frameIndex,
+        this.x, this.y,
+        this.config.drawSize ?? CONFIG.CELL_SIZE,
+      );
     } else {
       this._drawFallback(ctx);
     }
@@ -154,42 +150,6 @@ export class Unit {
     ctx.ellipse(this.x, shadowY, shadowRX, shadowRY, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-  }
-
-  /**
-   * Draw a single animation frame, scaled to fit config.drawSize.
-   *
-   * Each unit definition can specify a drawSize (px) which acts as the
-   * bounding box.  The natural frame (fw × fh) is scaled down proportionally
-   * so it fits inside that box without distortion.  This handles sprites whose
-   * source artwork varies wildly in pixel dimensions (e.g. Wizard 231×190 vs
-   * Goblin 48×48).
-   *
-   * rowIndex override: when layout.rowIndex is defined, that row is used
-   * directly (needed for multi-row shared spritesheets like Arcana Archer).
-   */
-  _drawFrame(ctx, sprite, layout) {
-    const cols = layout.cols ?? 1;
-    const rows = layout.rows ?? 1;
-    const fw   = sprite.width  / cols;   // natural frame width  (source px)
-    const fh   = sprite.height / rows;   // natural frame height (source px)
-
-    const col = this._frameIndex % cols;
-    const row = (layout.rowIndex !== undefined)
-      ? layout.rowIndex
-      : Math.floor(this._frameIndex / cols);
-
-    // Scale frame to fit within the target box while preserving aspect ratio
-    const target = this.config.drawSize ?? CONFIG.CELL_SIZE;
-    const scale  = Math.min(target / fw, target / fh);
-    const drawW  = fw * scale;
-    const drawH  = fh * scale;
-
-    ctx.drawImage(
-      sprite,
-      col * fw, row * fh, fw, fh,
-      this.x - drawW / 2, this.y - drawH / 2, drawW, drawH
-    );
   }
 
   _drawFallback(ctx) {

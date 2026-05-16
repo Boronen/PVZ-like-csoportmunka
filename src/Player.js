@@ -16,20 +16,37 @@ export class Player {
     this.selectedSlot = (this.selectedSlot === index) ? null : index;
   }
 
-  // Attempt to place a unit from the selected slot.
-  // Returns the config object on success, null on failure.
+  /**
+   * Attempt to place a unit from the selected slot at the given canvas position.
+   *
+   * Validates affordability, cooldown, and grid occupancy before committing.
+   * On success deducts cost, starts the cooldown, clears the selection, and
+   * returns placement data; on failure returns null.
+   *
+   * @param {number} clickX
+   * @param {number} clickY
+   * @param {Grid}   grid
+   * @param {Game}   game   (unused here, kept for signature compatibility)
+   * @returns {{ config, worldX, worldY, col, row } | null}
+   */
   placeUnit(clickX, clickY, grid, game) {
     if (this.selectedSlot === null) return null;
+
     const config = this.slots[this.selectedSlot];
     if (!config) return null;
+
+    // Guard: slot still cooling down
     if (this.cooldowns[this.selectedSlot] > 0) return null;
-    if (this.money < config.cost) return null;
+
+    // Guard: player cannot afford this unit
+    if (!this._canAfford(config.cost)) return null;
 
     const { worldX, worldY, col, row } = grid.snapToCell(clickX, clickY);
     if (grid.isOccupied(col, row)) return null;
 
+    // All checks passed — commit the placement
     this.money -= config.cost;
-    this.cooldowns[this.selectedSlot] = config.cooldown;
+    this._startCooldown(this.selectedSlot, config.cooldown);
     this.selectedSlot = null;
 
     return { config, worldX, worldY, col, row };
@@ -54,5 +71,27 @@ export class Player {
         this.cooldowns[i] = Math.max(0, this.cooldowns[i] - deltaTime);
       }
     }
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  /**
+   * Return true if the player currently has enough money to cover `cost`.
+   *
+   * @param {number} cost
+   * @returns {boolean}
+   */
+  _canAfford(cost) {
+    return this.money >= cost;
+  }
+
+  /**
+   * Begin the cooldown timer for a slot.
+   *
+   * @param {number} slotIndex    Index into `this.cooldowns`.
+   * @param {number} durationSecs Cooldown duration in seconds.
+   */
+  _startCooldown(slotIndex, durationSecs) {
+    this.cooldowns[slotIndex] = durationSecs;
   }
 }

@@ -26,8 +26,8 @@ export const UNIT_DEFS = {
     range:        85,
     cost:         100,
     cooldown:     7.5,
-    idleSprite:   'assets/ally_Soldier_idle.png',
-    attackSprite: 'assets/ally_Soldier_attack.png',
+    idleSprite:   'assets/sprites/allies/ally_Soldier_idle.png',
+    attackSprite: 'assets/sprites/allies/ally_Soldier_attack.png',
     idleFrames:   { cols: 3, rows: 3, total: 9 },
     attackFrames: { cols: 3, rows: 3, total: 8 },
     onAttack:     'melee',
@@ -49,8 +49,8 @@ export const UNIT_DEFS = {
     range:        420,
     cost:         125,
     cooldown:     8,
-    idleSprite:   'assets/ally_archer_idle.png',
-    attackSprite: 'assets/ally_archer_attack.png',
+    idleSprite:   'assets/sprites/allies/ally_archer_idle.png',
+    attackSprite: 'assets/sprites/allies/ally_archer_attack.png',
     // ally_archer_idle.png   : 220×330 → 2col×3row → frame 110×110
     idleFrames:   { cols: 2, rows: 3, total: 5 },
     // ally_archer_attack.png : 480×600 → 4col×5row → frame 120×120 (square)
@@ -76,15 +76,15 @@ export const UNIT_DEFS = {
     range:        460,
     cost:         150,
     cooldown:     9,
-    idleSprite:   'assets/Arcane archer/spritesheet.png',
-    attackSprite: 'assets/Arcane archer/spritesheet.png',
+    idleSprite:   'assets/sprites/allies/Arcane archer/spritesheet.png',
+    attackSprite: 'assets/sprites/allies/Arcane archer/spritesheet.png',
     // 512×512 / 8 cols / 8 rows → 64×64 per frame
     idleFrames:   { cols: 8, rows: 8, total: 2, rowIndex: 7 },
     attackFrames: { cols: 8, rows: 8, total: 7, rowIndex: 3 },
     onAttack:     'projectile',
     effectOnHit:  null,
     drawSize:     80,
-    projectileSprite: 'assets/Arcane archer/projectile.png',
+    projectileSprite: 'assets/sprites/allies/Arcane archer/projectile.png',
     projectileFrames: { cols: 1, rows: 1, total: 1 },
   },
 
@@ -105,8 +105,8 @@ export const UNIT_DEFS = {
     range:        400,
     cost:         175,
     cooldown:     9,
-    idleSprite:   'assets/Wizard Pack/Idle.png',
-    attackSprite: 'assets/Wizard Pack/Attack2.png',
+    idleSprite:   'assets/sprites/allies/Wizard Pack/Idle.png',
+    attackSprite: 'assets/sprites/allies/Wizard Pack/Attack2.png',
     // 1386×190 / 6 cols → 231×190 per frame (horizontal strip, 1 row)
     idleFrames:   { cols: 6, rows: 1, total: 6 },
     // 1848×190 / 8 cols → 231×190 per frame
@@ -123,6 +123,9 @@ export const UNIT_DEFS = {
 
   /**
    * Goblin — Monster Creatures Fantasy pack.
+   * Lobs bombs at medium range (projectile attack).
+   *   Attack3.png   : 1800×150 → 12 col × 1 row → frame 150×150
+   *   Bomb_sprite.png : 2850×150 → 19 col × 1 row → frame 150×150
    */
   goblin: {
     key:          'goblin',
@@ -130,17 +133,19 @@ export const UNIT_DEFS = {
     hp:           80,
     attackSpeed:  2.0,
     damage:       20,
-    range:        75,
+    range:        200,
     cost:         75,
     cooldown:     6,
-    idleSprite:   'assets/Monster_Creatures_Fantasy(Version 1.3)/Goblin/Attack3.png',
-    attackSprite: 'assets/Monster_Creatures_Fantasy(Version 1.3)/Goblin/Attack3.png',
+    idleSprite:   'assets/sprites/allies/Monster_Creatures_Fantasy(Version 1.3)/Goblin/Attack3.png',
+    attackSprite: 'assets/sprites/allies/Monster_Creatures_Fantasy(Version 1.3)/Goblin/Attack3.png',
     // Attack3.png : 1800×150 → 12 col × 1 row → frame 150×150 (perfect square)
     idleFrames:   { cols: 12, rows: 1, total: 12 },
     attackFrames: { cols: 12, rows: 1, total: 12 },
-    onAttack:     'melee',
+    onAttack:     'projectile',
     effectOnHit:  null,
     drawSize:     96,
+    projectileSprite: 'assets/sprites/allies/Monster_Creatures_Fantasy(Version 1.3)/Goblin/Bomb_sprite.png',
+    projectileFrames: { cols: 19, rows: 1, total: 19 },
   },
 
 };

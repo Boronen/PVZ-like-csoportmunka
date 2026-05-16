@@ -17,8 +17,8 @@ export const ENEMY_DEFS = {
     damage:        20,
     range:         350,
     reward:        25,
-    idleSprite:    'assets/enemy_Slade_moving.png',
-    attackSprite:  'assets/enemy_Slade_shooting.png',
+    idleSprite:    'assets/sprites/enemies/enemy_Slade_moving.png',
+    attackSprite:  'assets/sprites/enemies/enemy_Slade_shooting.png',
     idleFrames:    { cols: 5, rows: 1, total: 4 },
     attackFrames:  { cols: 5, rows: 3, total: 14 },
     onAttack:      'projectile',
@@ -38,9 +38,9 @@ export const ENEMY_DEFS = {
    * Ranged projectile uses ravenSprite: 3 col × 4 row, 12 frames
    *
    * Sounds:
-   *   moving  → assets/musics/jozsi_moving.mp3
-   *   ranged  → assets/musics/jozsi_raven_attack.mp3
-   *   melee   → assets/musics/jozsi_smash_v2.mp3
+   *   moving  → assets/sounds/jozsi_moving.mp3
+   *   ranged  → assets/sounds/jozsi_raven_attack.mp3
+   *   melee   → assets/sounds/jozsi_smash_v2.mp3
    */
   jozsi: {
     key:           'jozsi',
@@ -55,19 +55,19 @@ export const ENEMY_DEFS = {
     isBoss:        true,
 
     // Moving sprite — 960×1280 → 3 col × 4 row → frame 320×320 px (integer!)
-    idleSprite:    'assets/enemy_Jozsi_moving.png',
+    idleSprite:    'assets/sprites/enemies/enemy_Jozsi_moving.png',
     idleFrames:    { cols: 3, rows: 4, total: 12 },
 
     // Ranged attack sprite — 960×1280 → 3 col × 4 row → frame 320×320 px
-    attackSprite:  'assets/enemy_Jozsi_ranged_attack.png',
+    attackSprite:  'assets/sprites/enemies/enemy_Jozsi_ranged_attack.png',
     attackFrames:  { cols: 3, rows: 4, total: 12 },
 
     // Melee attack sprite — 1280×1280 → 4 col × 4 row → frame 320×320 px
-    meleeSprite:   'assets/enemy_Jozsi_meele_attack.png',
+    meleeSprite:   'assets/sprites/enemies/enemy_Jozsi_meele_attack.png',
     meleeFrames:   { cols: 4, rows: 4, total: 15 },
 
     // Raven projectile sprite — 660×600 → 3 col × 4 row → frame 220×150 px
-    ravenSprite:   'assets/enemy_Jozsi_raven_ranged_attack.png',
+    ravenSprite:   'assets/sprites/enemies/enemy_Jozsi_raven_ranged_attack.png',
     ravenFrames:   { cols: 3, rows: 4, total: 12 },
 
     // Boss — 2× standard, dominates the screen
@@ -77,9 +77,9 @@ export const ENEMY_DEFS = {
     effectOnHit:   null,
 
     sounds: {
-      move:   'assets/musics/jozsi_moving.mp3',
-      ranged: 'assets/musics/jozsi_raven_attack.mp3',
-      melee:  'assets/musics/jozsi_smash_v2.mp3',
+      move:   'assets/sounds/jozsi_moving.mp3',
+      ranged: 'assets/sounds/jozsi_raven_attack.mp3',
+      melee:  'assets/sounds/jozsi_smash_v2.mp3',
     },
   },
 
@@ -89,8 +89,8 @@ export const ENEMY_DEFS = {
    * Spritesheet: 4 col × 4 row, 15 frames
    *
    * Sounds:
-   *   spawn   → assets/musics/bones_spawn.mp3
-   *   running → assets/musics/bones.mp3
+   *   spawn   → assets/sounds/bones_spawn.mp3
+   *   running → assets/sounds/bones.mp3
    */
   rex: {
     key:           'rex',
@@ -104,8 +104,8 @@ export const ENEMY_DEFS = {
     reward:        30,
 
     // 440×440 → 4 col × 4 row → frame 110×110 px
-    idleSprite:    'assets/enemy_Rex_moving.png',
-    attackSprite:  'assets/enemy_Rex_moving.png',
+    idleSprite:    'assets/sprites/enemies/enemy_Rex_moving.png',
+    attackSprite:  'assets/sprites/enemies/enemy_Rex_moving.png',
     idleFrames:    { cols: 4, rows: 4, total: 15 },
     attackFrames:  { cols: 4, rows: 4, total: 15 },
     drawSize:      72,
@@ -114,8 +114,8 @@ export const ENEMY_DEFS = {
     effectOnHit:   null,
 
     sounds: {
-      spawn: 'assets/musics/bones_spawn.mp3',
-      move:  'assets/musics/bones.mp3',
+      spawn: 'assets/sounds/bones_spawn.mp3',
+      move:  'assets/sounds/bones.mp3',
     },
   },
 
@@ -138,8 +138,8 @@ export const ENEMY_DEFS = {
     reward:        20,
 
     // 832×64 → 13 col × 1 row → frame 64×64 (perfect square)
-    idleSprite:    'assets/skeleton_enemy_moving.png',
-    attackSprite:  'assets/skeleton_enemy_attack.png',
+    idleSprite:    'assets/sprites/enemies/Skeleton_enemy_moving.png',
+    attackSprite:  'assets/sprites/enemies/Skeleton_enemy_attack.png',
     // 12 usable frames (last frame is blank/useless)
     idleFrames:    { cols: 13, rows: 1, total: 12 },
     attackFrames:  { cols: 13, rows: 1, total: 13 },
@@ -173,12 +173,12 @@ export const ENEMY_DEFS = {
 
     useIndividualFrames: true,
     idleFrameFiles:   Array.from({ length: 8 }, (_, i) =>
-      `assets/Bringer-Of-Death/Individual Sprite/Walk/Bringer-of-Death_Walk_${i + 1}.png`),
+      `assets/sprites/enemies/Bringer-Of-Death/Individual Sprite/Walk/Bringer-of-Death_Walk_${i + 1}.png`),
     attackFrameFiles: Array.from({ length: 10 }, (_, i) =>
-      `assets/Bringer-Of-Death/Individual Sprite/Attack/Bringer-of-Death_Attack_${i + 1}.png`),
+      `assets/sprites/enemies/Bringer-Of-Death/Individual Sprite/Attack/Bringer-of-Death_Attack_${i + 1}.png`),
     // Fallback / preload anchor sprites
-    idleSprite:       'assets/Bringer-Of-Death/Individual Sprite/Walk/Bringer-of-Death_Walk_1.png',
-    attackSprite:     'assets/Bringer-Of-Death/Individual Sprite/Attack/Bringer-of-Death_Attack_1.png',
+    idleSprite:       'assets/sprites/enemies/Bringer-Of-Death/Individual Sprite/Walk/Bringer-of-Death_Walk_1.png',
+    attackSprite:     'assets/sprites/enemies/Bringer-Of-Death/Individual Sprite/Attack/Bringer-of-Death_Attack_1.png',
     idleFrames:       { cols: 1, rows: 1, total: 1 },
     attackFrames:     { cols: 1, rows: 1, total: 1 },
     // 1.5× standard cell size

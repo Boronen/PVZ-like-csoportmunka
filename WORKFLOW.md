@@ -1,6 +1,6 @@
-# 🔄 Garden Defense — Workflow & Team Roles
+# 🔄 Prophecy — Workflow & Team Roles
 
-> Describes who does what, how the project is structured, and how development has progressed over time.
+> Describes who does what, how the project is structured, and how development has progressed.
 
 ---
 
@@ -9,7 +9,7 @@
 1. [Team Members & Roles](#team-members--roles)
 2. [Project Workflow](#project-workflow)
 3. [Development Progress](#development-progress)
-4. [How Modules Depend on Each Other](#how-modules-depend-on-each-other)
+4. [Module Dependency Map](#module-dependency-map)
 5. [Branching & Contribution Guidelines](#branching--contribution-guidelines)
 6. [Naming & Code Style](#naming--code-style)
 
@@ -19,112 +19,124 @@
 
 ### 🛠️ Tomi — Core Systems & Game Architecture
 
-**Strengths:** Great ideas, strong implementation concepts, creative problem-solving.
-
 **Responsibilities:**
-- Base `Enemy` class ([`src/Enemy.js`](src/Enemy.js)) — movement, targeting, attack logic
-- Base `Player` class ([`src/Player.js`](src/Player.js)) — HP, money, slots, cooldowns
-- Base `Unit` class ([`src/Unit.js`](src/Unit.js)) — placement, combat, animation state
-- `Grid` system ([`src/Grid.js`](src/Grid.js)) — occupancy map, coordinate helpers
-- `WaveManager` ([`src/WaveManager.js`](src/WaveManager.js)) — wave sequencing, spawn queue
-- `Effect` system ([`src/Effect.js`](src/Effect.js)) — status conditions (slow, burn, stun)
-- Game config ([`src/utils/CONFIG.js`](src/utils/CONFIG.js)) — all tunable constants
-- Data definitions ([`src/data/enemyDefs.js`](src/data/enemyDefs.js), [`src/data/unitDefs.js`](src/data/unitDefs.js), [`src/data/waves.js`](src/data/waves.js))
+- `Enemy` class — movement, targeting, attack logic, boss mode, sound hooks, flipX
+- `Player` class — HP, money, slots, cooldowns
+- `Unit` class — placement, combat, animation state
+- `Grid` system — occupancy map, coordinate helpers
+- `WaveManager` — PVZ burst spawning, faction-scoped wave sets, progress bar data
+- `Effect` system — status conditions
+- `CONFIG.js` — all tunable constants
+- Data definitions: `enemyDefs.js`, `unitDefs.js`, `waves.js`
 
 ---
 
 ### 💻 Kevin — AI-assisted Development & Advanced Features
 
-**Strengths:** Expert at leveraging AI tools (Copilot, ChatGPT, etc.), strong overall coder.
-
 **Responsibilities:**
-- `Game` main controller ([`src/Game.js`](src/Game.js)) — game loop, orchestration, input handling
-- `Projectile` system ([`src/Projectile.js`](src/Projectile.js)) — travel logic, hit detection
-- `EventEmitter` ([`src/utils/EventEmitter.js`](src/utils/EventEmitter.js)) — pub/sub decoupling
-- `SpriteLoader` ([`src/utils/SpriteLoader.js`](src/utils/SpriteLoader.js)) — async image loading & caching
-- [`index.html`](index.html) — page layout, CSS, canvas setup
-- [`src/main.js`](src/main.js) — entry point, start/pause button wiring
-- Performance optimisations, debugging, AI-generated code review
+- `Game` — main controller, faction selection, preload, `timeScale` speed control
+- `Projectile` — travel, animated sprite support, `spriteScale`
+- `EventEmitter`, `SpriteLoader` utilities
+- `Animator.js`, `drawFrame.js`, `SoundPlayer.js` refactor utilities
+- `index.html` — layout, CSS, responsive mobile styles, in-game settings panel
+- `src/main.js` — intro sequence, menu buttons, faction screen, music system, settings sync
+- `debug.html` — animation viewer + spawn arena
+- Bug fixes, debugging, AI-assisted code generation
 
 ---
 
 ### 🎨 Marcell — Art, Visual Code & Animation
 
-**Strengths:** Skilled at drawing and animation; responsible for all visual assets **and all rendering code**.
-
 **Art responsibilities:**
-- All unit sprite sheets (`assets/ally_*.png`)
-- All enemy sprite sheets (`assets/enemy_*.png`)
-- Background image (`assets/background.jpg`)
-- HTML background gif (`assets/htmlbackground.gif`)
-- Future animated assets (new enemies, VFX, UI icons)
-- Maintaining consistent art style across all characters
-- Defining sprite sheet grid layouts (rows, cols, frame counts) — communicating these to Tomi for data definitions
+- All unit sprites (`assets/sprites/allies/`)
+- All enemy sprites (`assets/sprites/enemies/`)
+- UI assets (`assets/ui/`)
+- Background and logo assets
+- Sprite sheet layout definitions (communicates cols/rows/total to Tomi for data defs)
 
 **Coding responsibilities:**
-- `UI` ([`src/ui/UI.js`](src/ui/UI.js)) — HUD: HP bar, money counter, wave counter
-- `SlotBar` ([`src/ui/SlotBar.js`](src/ui/SlotBar.js)) — 6-slot bar, cooldown overlays, cost badges, selection highlight
-- `ParticleSystem` ([`src/ParticleSystem.js`](src/ParticleSystem.js)) — particle burst effects on death, hit, placement
-- `draw()` methods inside [`Unit`](src/Unit.js), [`Enemy`](src/Enemy.js), [`Projectile`](src/Projectile.js), and [`Grid`](src/Grid.js) — all canvas rendering
+- `UI.js` — HUD: HP bar, money counter, PVZ wave progress bar
+- `SlotBar.js` — 6-slot bar, cooldown overlay, cost badge, selected highlight
+- `draw()` methods in `Unit`, `Enemy`, `Projectile`, `Grid`
 
 ---
 
 ## Project Workflow
 
-### How a New Enemy is Added
+### Adding a New Enemy
 
 ```
-Marcell draws sprite sheet
+Marcell draws sprite sheet(s)
         │
         ▼
-Marcell delivers:
-  assets/enemy_<Name>_moving.png
-  assets/enemy_<Name>_shooting.png
-  + frame layout (cols × rows × total)
+Delivers to: assets/sprites/enemies/
+  <enemy>_moving.png  (or individual PNG folder)
+  <enemy>_attack.png
+  + measured frame layout: cols × rows × total frames
         │
         ▼
 Tomi adds entry to src/data/enemyDefs.js:
   {
-    key, label, hp, movementSpeed,
+    key, label, faction, hp, movementSpeed,
     attackSpeed, damage, range, reward,
     idleSprite, attackSprite,
-    idleFrames, attackFrames,
+    idleFrames: { cols, rows, total, rowIndex? },
+    attackFrames: { cols, rows, total, rowIndex? },
+    drawSize?,        // optional: px bounding box
+    drawOffsetX?,     // optional: anchor shift
+    flipX?,           // optional: horizontal mirror
+    useIndividualFrames?,  // optional: array-of-PNG mode
+    sounds?,          // optional: { spawn, move, melee, ranged }
     onAttack, effectOnHit
   }
         │
         ▼
-Tomi adds defKey to a wave pool in src/data/waves.js
+Tomi adds defKey to appropriate wave pool in src/data/waves.js
         │
         ▼
-Kevin tests in-game, adjusts stats via CONFIG / defs
+Kevin tests in-game via debug.html, adjusts stats
 ```
 
-### How a New Unit is Added
+### Adding a New Unit
 
 ```
-Marcell draws sprite sheet
+Marcell draws sprite sheet(s)
         │
         ▼
-Marcell delivers:
-  assets/ally_<Name>_idle.png
-  assets/ally_<Name>_attack.png
+Delivers to: assets/sprites/allies/
+  ally_<Name>_idle.png
+  ally_<Name>_attack.png
   + frame layout
         │
         ▼
 Tomi adds entry to src/data/unitDefs.js:
   {
-    key, label, hp, attackSpeed,
-    damage, range, cost, cooldown,
+    key, label, hp, attackSpeed, damage, range, cost, cooldown,
     idleSprite, attackSprite,
     idleFrames, attackFrames,
-    onAttack, effectOnHit
+    drawSize?,
+    onAttack: 'melee' | 'projectile',
+    effectOnHit,
+    projectileSprite?,   // optional animated projectile
+    projectileFrames?,
+    projectileScale?,
   }
         │
         ▼
-Kevin adds unit to player slots in Game._setupSlots()
+Unit auto-appears in slots via Game._setupSlots()
         │
         ▼
 Kevin tests + tunes in-game
+```
+
+### Adding a New Faction
+
+```
+1. Marcell creates enemy sprites for the faction
+2. Tomi adds enemy defs in enemyDefs.js with { faction: 'myfaction' }
+3. Tomi adds wave entries in waves.js with { faction: 'myfaction' }
+4. Kevin adds music paths to FACTION_PLAYLIST in main.js
+5. Kevin adds faction button to #faction-screen in index.html
 ```
 
 ---
@@ -135,93 +147,141 @@ Kevin tests + tunes in-game
 
 | Task | Owner | Status |
 |---|---|---|
-| Project structure & module system | Kevin | ✅ Done |
-| Canvas setup & game loop | Kevin | ✅ Done |
-| `CONFIG.js` with all constants | Tomi | ✅ Done |
-| `Grid` — occupancy map + coordinate helpers | Tomi | ✅ Done |
-| `Player` — HP, money, slots, cooldowns | Tomi | ✅ Done |
-| `EventEmitter` utility | Kevin | ✅ Done |
-| `SpriteLoader` utility | Kevin | ✅ Done |
+| Project structure & ES module system | Kevin | ✅ |
+| Canvas setup & game loop | Kevin | ✅ |
+| `CONFIG.js` constants | Tomi | ✅ |
+| `Grid` — occupancy map + coordinate helpers | Tomi | ✅ |
+| `Player` — HP, money, slots, cooldowns | Tomi | ✅ |
+| `EventEmitter`, `SpriteLoader` utilities | Kevin | ✅ |
 
 ### Phase 2 — Core Gameplay ✅
 
 | Task | Owner | Status |
 |---|---|---|
-| `Unit` class — placement, combat, animation | Tomi | ✅ Done |
-| `Enemy` class — movement, attack, blocking | Tomi | ✅ Done |
-| `Projectile` — travel + hit detection | Kevin | ✅ Done |
-| `Effect` — slow status condition | Tomi | ✅ Done |
-| `WaveManager` — wave sequencing, spawn queue | Tomi | ✅ Done |
-| `unitDefs.js` — Soldier, Archer | Tomi | ✅ Done |
-| `enemyDefs.js` — Slade | Tomi | ✅ Done |
-| `waves.js` — 3 waves | Tomi | ✅ Done |
-| Sprite sheets for Soldier, Archer, Slade | Marcell | ✅ Done |
+| `Unit` class — placement, combat, animation | Tomi | ✅ |
+| `Enemy` class — movement, attack, blocking | Tomi | ✅ |
+| `Projectile` — travel + hit detection | Kevin | ✅ |
+| `Effect` — slow status condition | Tomi | ✅ |
+| `WaveManager` — wave sequencing, spawn queue | Tomi | ✅ |
+| `unitDefs.js` — Soldier, Archer | Tomi | ✅ |
+| `enemyDefs.js` — Slade | Tomi | ✅ |
+| `waves.js` — 4 legacy waves | Tomi | ✅ |
 
-### Phase 3 — UI & Polish ✅
-
-| Task | Owner | Status |
-|---|---|---|
-| `UI.js` — HUD (HP bar, money, wave counter) | Marcell | ✅ Done |
-| `SlotBar.js` — 6 slots, cooldown overlay | Marcell | ✅ Done |
-| `draw()` methods — Unit, Enemy, Projectile, Grid | Marcell | ✅ Done |
-| Background scrolling animation (HTML/CSS) | Kevin | ✅ Done |
-| Win / Lose overlay | Kevin | ✅ Done |
-| Pause / resume (P key) | Kevin | ✅ Done |
-| Background image (`background.jpg`) | Marcell | ✅ Done |
-
-### Phase 4 — More Enemies & Units 🔲
+### Phase 3 — UI & Visual Polish ✅
 
 | Task | Owner | Status |
 |---|---|---|
-| `grunt` enemy sprite + def | Marcell / Tomi | 🔲 Planned |
-| `shieldBearer` enemy sprite + def | Marcell / Tomi | 🔲 Planned |
-| `scout` enemy sprite + def | Marcell / Tomi | 🔲 Planned |
-| `bomber` enemy sprite + def | Marcell / Tomi | 🔲 Planned |
-| `tank` boss enemy sprite + def | Marcell / Tomi | 🔲 Planned |
-| `crossbowman` unit sprite + def | Marcell / Tomi | 🔲 Planned |
-| `mage` unit sprite + def | Marcell / Tomi | 🔲 Planned |
-| `knight` unit sprite + def | Marcell / Tomi | 🔲 Planned |
-| 10-wave campaign (waves 4–10) | Tomi | 🔲 Planned |
+| `UI.js` — HUD: HP bar, money, wave progress bar | Marcell | ✅ |
+| `SlotBar.js` — 6 slots, cooldown, cost badge | Marcell | ✅ |
+| `draw()` methods — Unit, Enemy, Projectile, Grid | Marcell | ✅ |
+| PVZ-style wave progress bar | Marcell | ✅ |
+| Win / Lose overlay | Kevin | ✅ |
+| Pause / resume (P key + button) | Kevin | ✅ |
+| Stone floor + isometric grid render | Marcell | ✅ |
 
-### Phase 5 — Advanced Features 🔲
+### Phase 4 — Enemy Factions ✅
 
 | Task | Owner | Status |
 |---|---|---|
-| `ParticleSystem.js` — death/hit/placement bursts | Marcell | ✅ Done |
-| AoE projectile / splash damage | Kevin | 🔲 Planned |
-| `burn` & `stun` effects | Tomi | 🔲 Planned |
-| `healer` unit logic | Tomi / Kevin | 🔲 Planned |
-| Sound effects & music | Kevin / Marcell | 🔲 Planned |
-| Mobile touch support | Kevin | 🔲 Planned |
-| Fast-forward toggle | Kevin | 🔲 Planned |
+| Faction system design + data model | Tomi / Kevin | ✅ |
+| Undead faction: Skeleton | Tomi + Marcell | ✅ |
+| Undead faction: Rex (fast dog) | Tomi + Marcell | ✅ |
+| Undead faction: Jozsi (boss, 3-mode) | Tomi + Marcell | ✅ |
+| Egypt faction: Bringer of Death (individual PNG frames) | Tomi + Marcell | ✅ |
+| Faction selection screen | Kevin | ✅ |
+| Faction-scoped wave sets (12 waves total) | Tomi | ✅ |
+
+### Phase 5 — Advanced Ally Units ✅
+
+| Task | Owner | Status |
+|---|---|---|
+| Arcana Archer (shared spritesheet, rowIndex) | Tomi + Marcell | ✅ |
+| Wizard (horizontal strip, animated projectile 1.6×) | Tomi + Marcell | ✅ |
+| Goblin (bomb projectile, 19 frames) | Tomi + Marcell | ✅ |
+| Animated projectile sprites | Kevin | ✅ |
+| `projectileScale` multiplier | Kevin | ✅ |
+
+### Phase 6 — Audio & Intro ✅
+
+| Task | Owner | Status |
+|---|---|---|
+| Logo intro sequence (audio `timeupdate`-synced) | Kevin | ✅ |
+| Main menu image-buttons + red hover tint | Kevin | ✅ |
+| Menu background GIF | Marcell | ✅ |
+| Team logo bottom-right corner | Kevin / Marcell | ✅ |
+| Dual-track faction music playlist | Kevin | ✅ |
+| Enemy SFX (Jozsi, Rex via `SoundPlayer`) | Tomi / Kevin | ✅ |
+| In-game settings panel (volume + speed) | Kevin | ✅ |
+| Settings sliders synced across both panels | Kevin | ✅ |
+
+### Phase 7 — OOP Refactor & Architecture ✅
+
+| Task | Owner | Status |
+|---|---|---|
+| `Animator.js` utility | Kevin | ✅ |
+| `drawFrame.js` utility | Kevin | ✅ |
+| `SoundPlayer.js` utility | Kevin | ✅ |
+| Refactor `Unit` + `Enemy` to use shared utils | Kevin | ✅ |
+| `Game._collectPreloadSrcs()` cleanup | Kevin | ✅ |
+| `Player._canAfford()` + `_startCooldown()` helpers | Kevin | ✅ |
+| `UI` layout constant getters | Kevin / Marcell | ✅ |
+| `WaveManager` JSDoc + PVZ burst spawning | Kevin | ✅ |
+
+### Phase 8 — Mobile & Polish ✅
+
+| Task | Owner | Status |
+|---|---|---|
+| Touch event support (`touchstart` → `_handleCanvasClick`) | Kevin | ✅ |
+| Responsive canvas (CSS `width: 100%; height: auto`) | Kevin | ✅ |
+| iOS scroll/zoom prevention | Kevin | ✅ |
+| `SlotBar` enlarged touch targets (`HIT_PADDING = 8`) | Kevin | ✅ |
+| Media query layouts (640 px, 480 px) | Kevin | ✅ |
+| Asset folder reorganisation (`sprites/`, `sounds/`, `ui/`) | Kevin | ✅ |
+| `debug.html` animation viewer + spawn arena | Kevin | ✅ |
+| `README.md` + `PLAN.md` + `WORKFLOW.md` updated | Kevin | ✅ |
+
+### Phase 9 — Water Faction & Extended Content 🔲
+
+| Task | Owner | Status |
+|---|---|---|
+| Water faction enemy designs | Marcell | 🔲 Planned |
+| Water faction enemy defs + waves | Tomi | 🔲 Planned |
+| Crossbowman, Mage, Knight units | Marcell / Tomi | 🔲 Planned |
+| `burn`, `stun`, `weaken` effects | Tomi | 🔲 Planned |
+| AoE splash projectile | Kevin | 🔲 Planned |
+| Unit death animations | Marcell | 🔲 Planned |
+| Particle system (death/hit bursts) | Marcell | 🔲 Planned |
+| Save/load progress (localStorage) | Kevin | 🔲 Planned |
 
 ---
 
-## How Modules Depend on Each Other
+## Module Dependency Map
 
 ```
 index.html
-  └── src/main.js
-        └── Game.js
-              ├── utils/CONFIG.js          (constants — no deps)            [Kevin]
-              ├── utils/EventEmitter.js    (pub/sub — no deps)               [Kevin]
-              ├── utils/SpriteLoader.js    (image cache — no deps)           [Kevin]
-              ├── Grid.js                  (logic: Tomi | draw(): Marcell)
-              ├── Player.js                (depends on CONFIG)               [Tomi]
-              ├── Unit.js                  (logic: Tomi | draw(): Marcell)
-              ├── Enemy.js                 (logic: Tomi | draw(): Marcell)
-              ├── Projectile.js            (logic: Kevin | draw(): Marcell)
-              ├── Effect.js                (no deps — applied to Enemy)      [Tomi]
-              ├── WaveManager.js           (depends on CONFIG, Enemy, defs)  [Tomi]
-              ├── ParticleSystem.js        (depends on EventEmitter)         [Marcell]
-              ├── ui/UI.js                 (depends on CONFIG, SlotBar)      [Marcell]
-              ├── ui/SlotBar.js            (depends on CONFIG)               [Marcell]
-              ├── data/unitDefs.js         (plain data — no deps)            [Tomi]
-              ├── data/enemyDefs.js        (plain data — no deps)            [Tomi]
-              └── data/waves.js            (plain data — no deps)            [Tomi]
+  └── src/main.js                ← Kevin: intro, menu, music, faction select
+        └── Game.js              ← Kevin: loop, faction filter, preload
+              ├── utils/CONFIG.js          (no deps)
+              ├── utils/EventEmitter.js    (no deps)
+              ├── utils/SpriteLoader.js    (no deps)
+              ├── utils/Animator.js        (no deps)   ← shared by Unit + Enemy
+              ├── utils/drawFrame.js       (CONFIG)    ← shared by Unit + Enemy
+              ├── utils/SoundPlayer.js     (no deps)   ← used by Enemy
+              ├── Grid.js                  (CONFIG)
+              ├── Player.js                (CONFIG)
+              ├── Unit.js                  (CONFIG, Projectile, Animator, drawFrame)
+              ├── Enemy.js                 (CONFIG, Effect, Projectile, Animator, drawFrame, SoundPlayer)
+              ├── Projectile.js            (CONFIG, Effect)
+              ├── Effect.js                (no deps)
+              ├── WaveManager.js           (CONFIG, Enemy, ENEMY_DEFS)
+              ├── ui/UI.js                 (CONFIG, SlotBar)
+              ├── ui/SlotBar.js            (CONFIG)
+              ├── data/unitDefs.js         (no imports — pure data)
+              ├── data/enemyDefs.js        (no imports — pure data)
+              └── data/waves.js            (no imports — pure data)
 ```
 
-**Key rule:** Data files (`unitDefs`, `enemyDefs`, `waves`) have **zero imports** — they are pure plain objects. Adding a new enemy type never requires touching any logic file.
+**Key rule:** Data files (`unitDefs`, `enemyDefs`, `waves`) have **zero imports**. Adding new types never requires touching logic files.
 
 ---
 
@@ -237,13 +297,16 @@ index.html
 ### Commit Message Format
 
 ```
-<type>(<scope>): <short description>
+<type>(<scope>): <description>
+
+Types: feat  fix  art  refactor  chore  docs
 
 Examples:
-feat(enemy): add grunt melee enemy definition
-fix(projectile): correct hit-detection radius for archer
-art(sprites): add crossbowman idle & attack sprite sheets
-chore(config): tune wave 4 spawn interval
+feat(faction): add water faction enemies and waves
+fix(enemy): clamp Jozsi HP bar to game area
+art(sprites): add Skeleton_enemy_moving.png (13-frame strip)
+chore(audio): update sound paths to assets/sounds/
+docs(readme): update roadmap for Phase 9
 ```
 
 ---
@@ -252,13 +315,15 @@ chore(config): tune wave 4 spawn interval
 
 | Convention | Rule |
 |---|---|
-| Classes | `PascalCase` — e.g. `WaveManager`, `SpriteLoader` |
-| Methods / variables | `camelCase` — e.g. `takeDamage`, `laneIndex` |
-| Private methods | `_camelCase` — e.g. `_fireProjectile`, `_drawHealthBar` |
-| Constants | `UPPER_SNAKE_CASE` — e.g. `CONFIG.CELL_SIZE`, `UNIT_DEFS` |
-| Config keys | `camelCase` — e.g. `attackSpeed`, `effectOnHit` |
-| Asset filenames | `type_Label_state.png` — e.g. `ally_Archer_idle.png` |
+| Classes | `PascalCase` — `WaveManager`, `SoundPlayer` |
+| Methods / variables | `camelCase` — `takeDamage`, `laneIndex` |
+| Private | `_camelCase` — `_fireProjectile`, `_drawHealthBar` |
+| Constants | `UPPER_SNAKE_CASE` — `CONFIG.CELL_SIZE`, `UNIT_DEFS` |
+| Config keys | `camelCase` — `attackSpeed`, `drawSize`, `flipX` |
+| Sprite assets | `type_Label_state.png` — `Skeleton_enemy_moving.png` |
+| Sound assets | `subject_action.mp3` — `jozsi_smash_v2.mp3` |
 
 **No magic numbers** — always reference `CONFIG.*`.  
-**No global variables** — everything lives on the `Game` instance or is passed as arguments.  
-**Functions max ~20 lines** — extract if longer.
+**No global state** — everything lives on the `Game` instance.  
+**Functions max ~20 lines** — extract private helpers if longer.  
+**One responsibility per method** — `_canAfford()`, `_startCooldown()`, not one big `placeUnit()`.

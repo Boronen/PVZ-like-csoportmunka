@@ -61,40 +61,18 @@ export class Game {
     }
   }
 
+  // ── Preload ──────────────────────────────────────────────────────────────
+
   async preload() {
-    // Unit sprites (idle + attack)
-    const unitSrcs = Object.values(UNIT_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
-
-    // Unit projectile sprites (optional per-unit)
-    const unitProjSrcs = Object.values(UNIT_DEFS)
-      .filter(d => d.projectileSprite)
-      .map(d => d.projectileSprite);
-
-    // Enemy sprites — only load the active faction + legacy fallback
-    const factionEnemyKeys = Object.values(ENEMY_DEFS)
-      .filter(d => d.faction === this.faction || d.faction === 'legacy');
-
-    const enemySrcs = factionEnemyKeys.flatMap(d => {
-      const srcs = [d.idleSprite, d.attackSprite];
-      if (d.meleeSprite) srcs.push(d.meleeSprite);
-      if (d.ravenSprite) srcs.push(d.ravenSprite);
-      // Individual frame files (Bringer of Death, etc.)
-      if (d.useIndividualFrames) {
-        if (d.idleFrameFiles)   srcs.push(...d.idleFrameFiles);
-        if (d.attackFrameFiles) srcs.push(...d.attackFrameFiles);
-      }
-      return srcs;
-    });
-
-    const mapSrcs = ['assets/map/Stone_floor.jpg', 'assets/map/Tree_main.png'];
-    const bgSrc   = 'assets/background.jpg';
-
-    const allSrcs = [...new Set([
-      ...unitSrcs, ...unitProjSrcs, ...enemySrcs, ...mapSrcs, bgSrc
-    ].filter(Boolean))];
+    const allSrcs = this._collectPreloadSrcs();
 
     this._sprites = await this._loader.loadAll(allSrcs)
-      .catch(() => this._loader.loadAll([...unitSrcs, ...enemySrcs]));
+      .catch(() => {
+        // Fallback: retry with just unit + enemy sprites, skipping map assets
+        const unitSrcs  = Object.values(UNIT_DEFS).flatMap(d => [d.idleSprite, d.attackSprite]);
+        const enemySrcs = this._collectEnemySrcs();
+        return this._loader.loadAll([...unitSrcs, ...enemySrcs]);
+      });
 
     this._bgImage    = this._sprites['assets/background.jpg']      ?? null;
     this._stoneFloor = this._sprites['assets/map/Stone_floor.jpg'] ?? null;
@@ -103,6 +81,63 @@ export class Game {
     this.grid.stoneFloorImg = this._stoneFloor;
     this.waveManager.setSprites(this._sprites);
   }
+
+  /**
+   * Build a deduplicated array of every asset path that needs to be loaded
+   * before the game can start.
+   *
+   * @returns {string[]}  Unique, non-empty asset paths.
+   */
+  _collectPreloadSrcs() {
+    // Ally unit sprites (idle + attack sheets)
+    const unitSprites = Object.values(UNIT_DEFS)
+      .flatMap(d => [d.idleSprite, d.attackSprite]);
+
+    // Optional per-unit projectile sprite sheets
+    const unitProjectileSprites = Object.values(UNIT_DEFS)
+      .filter(d => d.projectileSprite)
+      .map(d => d.projectileSprite);
+
+    // Enemy sprites — restricted to the active faction + legacy fallback
+    const enemySprites = this._collectEnemySrcs();
+
+    // Static map assets
+    const mapSprites = ['assets/map/Stone_floor.jpg', 'assets/map/Tree_main.png'];
+    const bgSprite   = 'assets/background.jpg';
+
+    // Flatten, deduplicate, and strip falsy values
+    return [...new Set([
+      ...unitSprites,
+      ...unitProjectileSprites,
+      ...enemySprites,
+      ...mapSprites,
+      bgSprite,
+    ].filter(Boolean))];
+  }
+
+  /**
+   * Collect all sprite paths for enemies belonging to the current faction
+   * plus any 'legacy' faction entries.
+   *
+   * @returns {string[]}
+   */
+  _collectEnemySrcs() {
+    return Object.values(ENEMY_DEFS)
+      .filter(d => d.faction === this.faction || d.faction === 'legacy')
+      .flatMap(d => {
+        const srcs = [d.idleSprite, d.attackSprite];
+        if (d.meleeSprite) srcs.push(d.meleeSprite);
+        if (d.ravenSprite) srcs.push(d.ravenSprite);
+        // Individual frame files (Bringer of Death, etc.)
+        if (d.useIndividualFrames) {
+          if (d.idleFrameFiles)   srcs.push(...d.idleFrameFiles);
+          if (d.attackFrameFiles) srcs.push(...d.attackFrameFiles);
+        }
+        return srcs;
+      });
+  }
+
+  // ── Game lifecycle ───────────────────────────────────────────────────────
 
   start() {
     if (this.state === 'running') return;
@@ -136,6 +171,8 @@ export class Game {
 
     requestAnimationFrame(ts => this.gameLoop(ts));
   }
+
+  // ── Update ───────────────────────────────────────────────────────────────
 
   update(deltaTime) {
     this.player.update(deltaTime);
@@ -205,6 +242,8 @@ export class Game {
       this._overlay.className   = `visible ${result}`;
     }
   }
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   render() {
     const { ctx } = this;
@@ -278,7 +317,16 @@ export class Game {
 
   _bindEvents() {
     this.canvas.addEventListener('click', e => this._handleCanvasClick(e));
-    window.addEventListener('keydown',   e => this._handleKey(e));
+
+    // Touch support — reuse the same click handler by constructing a
+    // compatible synthetic event object from the first changed touch.
+    this.canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const touch = e.changedTouches[0];
+      this._handleCanvasClick({ clientX: touch.clientX, clientY: touch.clientY });
+    }, { passive: false });
+
+    window.addEventListener('keydown', e => this._handleKey(e));
   }
 
   _handleCanvasClick(e) {

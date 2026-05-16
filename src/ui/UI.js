@@ -8,6 +8,29 @@ export class UI {
     this.barY    = CONFIG.GAME_AREA_HEIGHT;   // pixel Y where UI panel starts
   }
 
+  // ── Layout constants ─────────────────────────────────────────────────────
+  // Centralised so pixel numbers never appear as raw magic values in the draw
+  // methods.  Use a getter so CONFIG values are resolved at runtime.
+
+  /** @returns {object} Layout descriptors for the HUD HP bar. */
+  get _hpBarLayout() {
+    return {
+      x:    20,    // left edge of the bar
+      barW: 160,   // total bar width  (px)
+      barH: 14,    // bar height       (px)
+    };
+  }
+
+  /** @returns {object} Layout descriptors for the PVZ wave progress bar. */
+  get _waveBarLayout() {
+    return {
+      x: 380,              // left edge of the bar
+      y: this.barY + 8,    // top edge (relative to UI panel start)
+      w: 340,              // total bar width  (px)
+      h: 20,               // bar height       (px)
+    };
+  }
+
   // Returns the slot index clicked, or -1
   handleClick(mouseX, mouseY) {
     return this.slotBar.hitTest(mouseX, mouseY, this.barY);
@@ -33,26 +56,26 @@ export class UI {
   }
 
   _drawHUD(ctx, player, waveManager) {
-    const y = this.barY + 22;
+    const hudY = this.barY + 22;  // baseline Y for the first HUD row
 
     ctx.save();
     ctx.font      = 'bold 14px sans-serif';
     ctx.textAlign = 'left';
 
     // Base HP bar
-    this._drawHpBar(ctx, player, 20, y);
+    this._drawHpBar(ctx, player, this._hpBarLayout.x, hudY);
 
-    // Money
+    // Money counter
     ctx.fillStyle = '#fff176';
     ctx.font      = 'bold 14px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`💰 $${Math.floor(player.money)}`, 220, y);
+    ctx.fillText(`💰 $${Math.floor(player.money)}`, 220, hudY);
 
     // Instructions hint (right side)
     ctx.fillStyle = '#888';
     ctx.font      = '11px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('Select slot → click grid to place  |  P = pause', CONFIG.CANVAS_WIDTH - 10, y);
+    ctx.fillText('Select slot → click grid to place  |  P = pause', CONFIG.CANVAS_WIDTH - 10, hudY);
 
     ctx.restore();
 
@@ -60,18 +83,29 @@ export class UI {
     this._drawWaveProgressBar(ctx, waveManager);
   }
 
+  /**
+   * Draw the base HP bar at the given position.
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Player} player
+   * @param {number} x  Left edge of the bar (px).
+   * @param {number} y  Baseline Y — the bar is drawn 10px above this (px).
+   */
   _drawHpBar(ctx, player, x, y) {
-    const barW = 160;
-    const barH = 14;
+    const { barW, barH } = this._hpBarLayout;
     const ratio = player.baseHp / CONFIG.BASE_HP;
 
+    // Background track
     ctx.fillStyle = '#333';
     ctx.fillRect(x, y - 10, barW, barH);
+
+    // Fill, colour-coded by health ratio
     ctx.fillStyle = ratio > 0.5 ? '#4caf50' : ratio > 0.25 ? '#ff9800' : '#f44336';
     ctx.fillRect(x, y - 10, barW * ratio, barH);
 
+    // HP label centred over the bar
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font      = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`🏰 ${player.baseHp} / ${CONFIG.BASE_HP}`, x + barW / 2, y + 1);
   }
@@ -87,12 +121,12 @@ export class UI {
    *   • enemiesDefeatedThisWave  {number}
    *   • totalEnemiesThisWave     {number}
    *   • currentWaveLabel         {string}  e.g. "Wave 2 / 4"
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {WaveManager} waveManager
    */
   _drawWaveProgressBar(ctx, waveManager) {
-    const x = 380;
-    const y = this.barY + 8;
-    const w = 340;
-    const h = 20;
+    const { x, y, w, h } = this._waveBarLayout;
 
     const defeated = waveManager.enemiesDefeatedThisWave  ?? 0;
     const total    = waveManager.totalEnemiesThisWave     ?? 1;
