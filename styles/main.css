@@ -86,7 +86,7 @@ body {
 #bg-menu {
   position: fixed;
   inset: 0;
-  background-image: url('../assets/ui/background.gif');
+  background-image: url('../assets/UI/background.gif');
   background-size: cover;
   background-position: center;
   z-index: 0;
